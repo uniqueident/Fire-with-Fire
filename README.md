@@ -16,3 +16,6 @@ then run:
 ```
 npx vite
 ```
+
+
+**Note** If it fails to run, the problem is likely that you need to go into the directory **before** running the install step.
