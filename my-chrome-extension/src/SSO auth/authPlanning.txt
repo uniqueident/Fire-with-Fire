@@ -1,0 +1,41 @@
+Nate's Contribution
+
+============================================================================
+MVP IMPLEMENTATION CHECKLIST: GOOGLE SSO (.EDU) FOR CHROME EXTENSION
+============================================================================
+Goal: Minimal viable Google SSO authentication system with strict .edu
+email verification, SHA-256(email + token) hashing, and local browser storage.
+============================================================================
+
+1. EXTENSION SETUP (manifest.json & src/background.ts)
+   - [x] Add "identity" and "storage" permissions to manifest.json.
+   - [x] Register service worker: "src/background.ts".
+   - [x] Add host_permissions for Google OAuth endpoints (accounts.google.com, oauth2.googleapis.com).
+   - [x] Set storage access level to 'TRUSTED_CONTEXTS' on install.
+
+2. AUTH CONFIGURATION (config.ts)
+   - [x] Configured for Google OIDC (accounts.google.com).
+   - [x] OAuth Scopes: openid, email, profile.
+   - [x] Redirect URI generator: chrome.identity.getRedirectURL().
+   - [x] Easy-copy setup guide integrated into popup UI.
+
+3. PKCE & CRYPTOGRAPHIC HASHING (pkce.ts)
+   - [x] High-entropy `code_verifier`, SHA-256 `code_challenge` (S256), `state`, and `nonce`.
+   - [x] Strict `.edu` email format validator (`validateEduEmail`).
+   - [x] SHA-256 hash generator: `hashTokenAndEmail(email, token)` using Web Crypto API.
+
+4. GOOGLE SSO LOGIN FLOW (authService.ts)
+   - [x] Open Google login with `prompt=select_account` via chrome.identity.launchWebAuthFlow.
+   - [x] Anti-CSRF state verification & 5-minute session TTL.
+   - [x] Exchange code for tokens via POST https://oauth2.googleapis.com/token.
+   - [x] Validate ID token claims (iss, aud, exp, nonce).
+   - [x] Strict Gatekeeping: Verify user account ends with '.edu' (reject personal Gmail).
+   - [x] Cryptographically hash `email + token + salt` upon verification.
+   - [x] Store verified credential on browser extension for future SSO access.
+
+5. BROWSER STORAGE & UI (storage.ts & SSOLogin.tsx)
+   - [x] Store active session tokens in `chrome.storage.session`.
+   - [x] Store persistent verified `.edu` credential in `chrome.storage.local`.
+   - [x] Resume session automatically on extension open.
+   - [x] Clean Google-styled Sign-In UI with .edu status badge and Logout.
+============================================================================
