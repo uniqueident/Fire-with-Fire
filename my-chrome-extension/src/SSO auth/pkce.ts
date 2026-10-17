@@ -1,15 +1,23 @@
 /**
- * pkce.ts — Cryptographic Security Helpers (PKCE, State, and Nonce)
+ * pkce.ts — Cryptographic Security Helpers (PKCE, State, Nonce, and Email/Token Hashing)
  *
- * Implements RFC 7636 (PKCE) and OIDC Core security standards using Web Crypto.
- *
- * SECURITY ROLES:
- * - Code Verifier: High-entropy secret retained by client during login flow.
- * - Code Challenge: SHA-256 hash of verifier sent to IdP during authorization request.
- * - State: Unpredictable token sent to IdP to prevent Cross-Site Request Forgery (CSRF).
- * - Nonce: Cryptographic token to bind the ID token to the authorization session,
- *   preventing token replay attacks.
+ * Implements RFC 7636 (PKCE), OIDC Core, and Web Crypto SHA-256 hashing.
  */
+
+// Application salt mixed into the token/email hash for added defense against rainbow table attacks
+const APP_HASH_SALT = 'fire-with-fire:edu-sso-salt:v1';
+
+/**
+ * Validates that an email has valid syntax and strictly ends with '.edu'.
+ */
+export function validateEduEmail(email: string): boolean {
+  if (!email || typeof email !== 'string') return false;
+  const trimmed = email.trim().toLowerCase();
+  
+  // Standard email pattern ending with .edu
+  const eduRegex = /^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.edu$/;
+  return eduRegex.test(trimmed);
+}
 
 /**
  * Converts an ArrayBuffer into a Base64URL string (RFC 4648 §5 without padding).
@@ -24,6 +32,16 @@ export function bufferToBase64Url(buffer: ArrayBuffer): string {
     .replace(/\+/g, '-')
     .replace(/\//g, '_')
     .replace(/=+$/, '');
+}
+
+/**
+ * Converts an ArrayBuffer to a standard hex string.
+ */
+export function bufferToHex(buffer: ArrayBuffer): string {
+  const bytes = new Uint8Array(buffer);
+  return Array.from(bytes)
+    .map((b) => b.toString(16).padStart(2, '0'))
+    .join('');
 }
 
 /**
@@ -42,8 +60,30 @@ export function generateRandomString(length: number = 64): string {
 }
 
 /**
+ * Generates a 6-digit verification code for email confirmation.
+ */
+export function generateVerificationCode(): string {
+  const values = new Uint32Array(1);
+  crypto.getRandomValues(values);
+  const code = (values[0] % 900000) + 100000; //any 6 digit #  100000 <= x <= 999999
+  return code.toString();
+}
+
+/**
+ * Securely hashes an email and token together using SHA-256 (Web Crypto).
+ * Returns the hex digest stored on the browser extension as proof of verification.
+ */
+export async function hashTokenAndEmail(email: string, token: string): Promise<string> {
+  const normalizedEmail = email.trim().toLowerCase();
+  const rawInput = `${normalizedEmail}:${token}:${APP_HASH_SALT}`;
+  const encoder = new TextEncoder();
+  const data = encoder.encode(rawInput);
+  const digest = await crypto.subtle.digest('SHA-256', data);
+  return bufferToHex(digest);
+}
+
+/**
  * Generates a PKCE Code Verifier (RFC 7636).
- * Must be unguessable, minimum 43 characters, maximum 128 characters.
  */
 export function generateCodeVerifier(): string {
   return generateRandomString(64);
@@ -51,7 +91,6 @@ export function generateCodeVerifier(): string {
 
 /**
  * Computes the PKCE Code Challenge using SHA-256 (S256 method).
- * Formula: code_challenge = Base64URL(SHA-256(code_verifier))
  */
 export async function generateCodeChallenge(codeVerifier: string): Promise<string> {
   const encoder = new TextEncoder();

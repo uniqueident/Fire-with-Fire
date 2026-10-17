@@ -6,8 +6,6 @@
  * (like opening a login popup or saving data) that normal websites don't have.
  * TypeScript doesn't know about these APIs by default, so this file describes them.
  *
- * You don't need to change anything here for the MVP.
- * If you want full TypeScript coverage for ALL Chrome APIs (not just auth),
  * run: npm install --save-dev @types/chrome
  */
 
@@ -69,6 +67,10 @@ declare namespace chrome {
   // The "runtime" namespace handles messaging between different parts of the
   // extension (e.g., the popup page talking to the background service worker).
   namespace runtime {
+    // Fired when the extension is first installed, updated, or Chrome is updated.
+    const onInstalled: {
+      addListener(callback: (details: { reason: string; previousVersion?: string }) => void): void;
+    };
     // If a Chrome API call failed, this will contain the error message.
     const lastError: { message?: string } | undefined;
     // The unique ID of this extension (used to verify message senders).

@@ -1,48 +1,44 @@
 Nate's Contribution
 
 ============================================================================
-MVP IMPLEMENTATION CHECKLIST: CHROME EXTENSION SSO (BARE REQUIREMENTS)
+MVP IMPLEMENTATION CHECKLIST: PASSWORDLESS .EDU SSO FOR CHROME EXTENSION
 ============================================================================
-Goal: Minimal viable OAuth 2.0 + PKCE flow to log a user in and get an access token.
+Goal: Minimal viable passwordless authentication system with strict .edu
+email verification, SHA-256(email + token) hashing, and local browser storage.
 ============================================================================
 
 1. EXTENSION SETUP (manifest.json)
-   - [ ] Add "identity" and "storage" to permissions.
-   - [ ] Add your IdP domain to host_permissions (e.g., https://*.your-idp.com/*).
-   - [ ] Get your redirect URL via chrome.identity.getRedirectURL() and whitelist it in your IdP dashboard.
+   - [x] Add "identity" and "storage" to permissions.
+   - [x] Add your IdP domain to host_permissions (e.g., https://*.google.com/*).
+   - [x] Get your redirect URL via chrome.identity.getRedirectURL() and whitelist it in your IdP dashboard.
 
-2. AUTH CONFIGURATION
-   - [ ] Client ID (configured as a Public Client / Single Page App; no secrets).
-   - [ ] Authorization endpoint URL.
-   - [ ] Token exchange endpoint URL.
-   - [ ] Scopes (e.g., "openid email profile").
+2. AUTH CONFIGURATION (config.ts)
+   - [x] Client ID (configured as a Public Client / Single Page App; no secrets).
+   - [x] Authorization endpoint URL.
+   - [x] Token exchange endpoint URL.
+   - [x] Scopes (e.g., "openid email profile").
 
-3. PKCE & CSRF (Bare Security Essentials)
-   - [ ] Generate random `code_verifier` (43-128 chars using crypto.getRandomValues).
-   - [ ] Generate `code_challenge` (SHA-256 hash of verifier, Base64URL-encoded, method S256).
-   - [ ] Generate random `state` (to protect against CSRF / login injection).
+3. PKCE & CRYPTOGRAPHIC HASHING (pkce.ts)
+   - [x] Generate random `code_verifier`, `code_challenge` (S256), `state`, and `nonce`.
+   - [x] Strict `.edu` email format validator (`validateEduEmail`).
+   - [x] SHA-256 hash generator: `hashTokenAndEmail(email, token)` using Web Crypto API.
+   - [x] 6-digit confirmation code generator.
 
-4. LOGIN FLOW (chrome.identity)
-   - [ ] Build authorization URL with: client_id, redirect_uri, response_type=code, scope, state, code_challenge, code_challenge_method=S256.
-   - [ ] Save state & code_verifier in chrome.storage.session.
-   - [ ] Launch login window: chrome.identity.launchWebAuthFlow({ url, interactive: true }).
-   - [ ] Parse returned callback URL query parameters for `code` and `state`.
-   - [ ] Verify returned `state === stored_state` (abort if mismatched).
+4. LOGIN FLOW (chrome.identity & Passwordless Email)
+   - [x] SSO Login: Check that the returned profile is strictly a `.edu` email address.
+   - [x] Passwordless Email Verification: User inputs `.edu` email; extension generates verification code/link.
+   - [x] Cryptographically hash `email + token + salt` upon verification.
+   - [x] Store verified user credential on browser extension for future SSO access.
 
-5. TOKEN EXCHANGE
-   - [ ] Send POST request to IdP token endpoint with: grant_type=authorization_code, client_id, redirect_uri, code, and code_verifier.
-   - [ ] Receive and parse `access_token` (and ID token / user info).
-
-6. STORAGE & LOGOUT
-   - [ ] Save `access_token` and basic user info in chrome.storage.session (or chrome.storage.local).
-   - [ ] Check storage when the extension popup opens to determine if user is logged in.
-   - [ ] Logout: clear tokens from storage.
+5. BROWSER STORAGE (storage.ts)
+   - [x] Save active session tokens in `chrome.storage.session`.
+   - [x] Save persistent verified `.edu` user credential in `chrome.storage.local`.
+   - [x] Resume verified user session on startup without re-entering credentials.
+   - [x] Logout: clear session tokens.
 ============================================================================
 
-Get:
-   Username
-   email
-   password
-
-   store token in browser
-   
+Authentication Design:
+   - Email: Strictly ending in .edu (e.g. user@university.edu)
+   - Password: Completely removed (Passwordless)
+   - Stored Token: SHA-256(email + token + salt) stored in browser extension
+============================================================================

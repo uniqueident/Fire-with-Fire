@@ -1,70 +1,62 @@
-import type { AuthTokens, PendingAuthState, UserProfile } from './types';
+import type {
+  AuthTokens,
+  PendingAuthState,
+  PendingEmailVerification,
+  StoredUserCredential,
+  UserProfile,
+} from './types';
 
 /**
- * storage.ts — Saving and Reading Auth Data in the Browser
+ * storage.ts — Secure Browser Storage Manager
  *
- * This file handles storing and retrieving tokens and user profile data
- * inside the Chrome extension's built-in storage.
- *
- * WHY NOT JUST USE localStorage?
- * localStorage is visible to any web page script, which is a security risk
- * for tokens. Chrome extensions have their own isolated storage areas that
- * are much safer — content scripts and web pages can't read them.
- *
- * STORAGE AREAS USED:
- * - chrome.storage.session: In-memory. Fastest and most secure. Wiped when browser closes.
- *   Used for: access tokens, user profile, pending login state.
- * - Falls back to localStorage/sessionStorage if running outside the extension
- *   (e.g., local Vite dev server in a regular browser tab).
- *
- * You don't need to change anything here for the MVP.
- * See the TODO at the bottom if you want tokens to survive browser restarts.
+ * Stores active session tokens, user credentials, and hashed tokens on the browser extension.
+ * - Active session tokens: stored in chrome.storage.session (memory-only, wiped on browser exit).
+ * - Verified .edu hashed credentials: stored in chrome.storage.local (persists across sessions).
  */
 
-// ---- STORAGE KEY NAMES ----------------------------------------------------
-// These are the named "slots" where each piece of data gets stored.
-// Think of them like variable names in the browser's storage dictionary.
 const STORAGE_KEYS = {
-  TOKENS: 'sso_auth_tokens',       // Stores the access token (and optionally id/refresh tokens)
-  USER: 'sso_auth_user',           // Stores the logged-in user's name and email
-  PENDING_AUTH: 'sso_pending_auth', // Stores temporary PKCE state while login popup is open
+  TOKENS: 'sso_auth_tokens',
+  USER: 'sso_auth_user',
+  PENDING_AUTH: 'sso_pending_auth',
+  PENDING_EMAIL_VERIFICATION: 'sso_pending_email_verification',
+  STORED_CREDENTIAL: 'sso_stored_user_credential',
 };
 
-// ---- ENVIRONMENT DETECTION ------------------------------------------------
-// Checks if we're running inside a real Chrome extension (vs. a plain browser tab).
-// This determines whether to use chrome.storage or fall back to localStorage.
 const hasChromeStorage = (): boolean => {
   return typeof chrome !== 'undefined' && Boolean(chrome.storage);
 };
 
-// Returns the right storage area to use (chrome.storage.session if available).
-const getStorageArea = () => {
+const getSessionStorage = () => {
   if (hasChromeStorage()) {
-    // session storage is in-memory only — safest option for short-lived tokens.
-    // Falls back to local storage if session isn't available.
     return chrome.storage.session || chrome.storage.local;
   }
-  return null; // Means we're in a plain browser — use localStorage instead
+  return null;
 };
 
-// ---- SAVE TOKENS ----------------------------------------------------------
-// Called after a successful login to store the access token in the browser.
-// The token is what gets sent with API requests to prove the user is logged in.
+const getLocalStorage = () => {
+  if (hasChromeStorage()) {
+    return chrome.storage.local;
+  }
+  return null;
+};
+
+/**
+ * Saves access tokens to session storage.
+ */
 export async function saveTokens(tokens: AuthTokens): Promise<void> {
-  const storage = getStorageArea();
+  const storage = getSessionStorage();
   if (storage) {
     await storage.set({ [STORAGE_KEYS.TOKENS]: tokens });
   } else {
-    // Fallback for local browser dev testing (not a Chrome extension context)
     localStorage.setItem(STORAGE_KEYS.TOKENS, JSON.stringify(tokens));
   }
 }
 
-// ---- GET TOKENS -----------------------------------------------------------
-// Called when the extension opens or makes an API request to check if the
-// user is logged in and retrieve their stored access token.
+/**
+ * Retrieves stored access tokens.
+ */
 export async function getTokens(): Promise<AuthTokens | null> {
-  const storage = getStorageArea();
+  const storage = getSessionStorage();
   if (storage) {
     const result = await storage.get(STORAGE_KEYS.TOKENS);
     return (result[STORAGE_KEYS.TOKENS] as AuthTokens) || null;
@@ -73,11 +65,11 @@ export async function getTokens(): Promise<AuthTokens | null> {
   return item ? (JSON.parse(item) as AuthTokens) : null;
 }
 
-// ---- SAVE USER PROFILE ----------------------------------------------------
-// Called after login to store the user's name and email so the popup can
-// display "Welcome, Nate!" without making another network request every time.
+/**
+ * Saves user profile to session storage.
+ */
 export async function saveUserProfile(user: UserProfile): Promise<void> {
-  const storage = getStorageArea();
+  const storage = getSessionStorage();
   if (storage) {
     await storage.set({ [STORAGE_KEYS.USER]: user });
   } else {
@@ -85,10 +77,11 @@ export async function saveUserProfile(user: UserProfile): Promise<void> {
   }
 }
 
-// ---- GET USER PROFILE -----------------------------------------------------
-// Called when the popup opens to display the user's name and email.
+/**
+ * Retrieves user profile from session storage.
+ */
 export async function getUserProfile(): Promise<UserProfile | null> {
-  const storage = getStorageArea();
+  const storage = getSessionStorage();
   if (storage) {
     const result = await storage.get(STORAGE_KEYS.USER);
     return (result[STORAGE_KEYS.USER] as UserProfile) || null;
@@ -97,14 +90,73 @@ export async function getUserProfile(): Promise<UserProfile | null> {
   return item ? (JSON.parse(item) as UserProfile) : null;
 }
 
-// ---- SAVE PENDING AUTH STATE ----------------------------------------------
-// Called right before the login popup opens.
-// Stores the PKCE code_verifier and anti-CSRF state so we can retrieve them
-// after the user logs in and the IdP redirects back to the extension.
-// We save it to storage (not just memory) because the service worker might
-// shut down while the user is on the login page.
+/**
+ * Saves verified .edu user hash to persistent local storage for future SSO / logins.
+ */
+export async function saveVerifiedCredential(credential: StoredUserCredential): Promise<void> {
+  const storage = getLocalStorage();
+  if (storage) {
+    await storage.set({ [STORAGE_KEYS.STORED_CREDENTIAL]: credential });
+  } else {
+    localStorage.setItem(STORAGE_KEYS.STORED_CREDENTIAL, JSON.stringify(credential));
+  }
+}
+
+/**
+ * Retrieves the stored verified .edu user hash.
+ */
+export async function getVerifiedCredential(): Promise<StoredUserCredential | null> {
+  const storage = getLocalStorage();
+  if (storage) {
+    const result = await storage.get(STORAGE_KEYS.STORED_CREDENTIAL);
+    return (result[STORAGE_KEYS.STORED_CREDENTIAL] as StoredUserCredential) || null;
+  }
+  const item = localStorage.getItem(STORAGE_KEYS.STORED_CREDENTIAL);
+  return item ? (JSON.parse(item) as StoredUserCredential) : null;
+}
+
+/**
+ * Saves pending email verification state (token + code).
+ */
+export async function savePendingEmailVerification(pending: PendingEmailVerification): Promise<void> {
+  const storage = getSessionStorage();
+  if (storage) {
+    await storage.set({ [STORAGE_KEYS.PENDING_EMAIL_VERIFICATION]: pending });
+  } else {
+    sessionStorage.setItem(STORAGE_KEYS.PENDING_EMAIL_VERIFICATION, JSON.stringify(pending));
+  }
+}
+
+/**
+ * Retrieves pending email verification state.
+ */
+export async function getPendingEmailVerification(): Promise<PendingEmailVerification | null> {
+  const storage = getSessionStorage();
+  if (storage) {
+    const result = await storage.get(STORAGE_KEYS.PENDING_EMAIL_VERIFICATION);
+    return (result[STORAGE_KEYS.PENDING_EMAIL_VERIFICATION] as PendingEmailVerification) || null;
+  }
+  const item = sessionStorage.getItem(STORAGE_KEYS.PENDING_EMAIL_VERIFICATION);
+  return item ? (JSON.parse(item) as PendingEmailVerification) : null;
+}
+
+/**
+ * Clears pending email verification state.
+ */
+export async function clearPendingEmailVerification(): Promise<void> {
+  const storage = getSessionStorage();
+  if (storage) {
+    await storage.remove(STORAGE_KEYS.PENDING_EMAIL_VERIFICATION);
+  } else {
+    sessionStorage.removeItem(STORAGE_KEYS.PENDING_EMAIL_VERIFICATION);
+  }
+}
+
+/**
+ * Saves pending PKCE authorization state.
+ */
 export async function savePendingAuth(pending: PendingAuthState): Promise<void> {
-  const storage = getStorageArea();
+  const storage = getSessionStorage();
   if (storage) {
     await storage.set({ [STORAGE_KEYS.PENDING_AUTH]: pending });
   } else {
@@ -112,12 +164,11 @@ export async function savePendingAuth(pending: PendingAuthState): Promise<void> 
   }
 }
 
-// ---- GET PENDING AUTH STATE -----------------------------------------------
-// Called after the login popup closes to retrieve the state and verifier
-// we saved before opening the popup. Used to verify the response and
-// complete the token exchange.
+/**
+ * Retrieves pending PKCE authorization state.
+ */
 export async function getPendingAuth(): Promise<PendingAuthState | null> {
-  const storage = getStorageArea();
+  const storage = getSessionStorage();
   if (storage) {
     const result = await storage.get(STORAGE_KEYS.PENDING_AUTH);
     return (result[STORAGE_KEYS.PENDING_AUTH] as PendingAuthState) || null;
@@ -126,11 +177,11 @@ export async function getPendingAuth(): Promise<PendingAuthState | null> {
   return item ? (JSON.parse(item) as PendingAuthState) : null;
 }
 
-// ---- CLEAR PENDING AUTH STATE ---------------------------------------------
-// Called immediately after the state is verified (successfully or not).
-// The pending state is one-time use — we delete it so it can't be replayed.
+/**
+ * Clears pending PKCE authorization state.
+ */
 export async function clearPendingAuth(): Promise<void> {
-  const storage = getStorageArea();
+  const storage = getSessionStorage();
   if (storage) {
     await storage.remove(STORAGE_KEYS.PENDING_AUTH);
   } else {
@@ -138,33 +189,43 @@ export async function clearPendingAuth(): Promise<void> {
   }
 }
 
-// ---- CLEAR ALL AUTH DATA (LOGOUT) -----------------------------------------
-// Called on logout. Removes all stored tokens and user info from the browser,
-// effectively ending the session.
-export async function clearAuthStorage(): Promise<void> {
-  const storage = getStorageArea();
-  if (storage) {
-    await storage.remove([
+/**
+ * Clears active session tokens and user profile on logout.
+ * Keeps verified .edu credential hash unless explicitly reset.
+ */
+export async function clearAuthStorage(resetStoredCredential: boolean = false): Promise<void> {
+  const sessionStore = getSessionStorage();
+  if (sessionStore) {
+    await sessionStore.remove([
       STORAGE_KEYS.TOKENS,
       STORAGE_KEYS.USER,
       STORAGE_KEYS.PENDING_AUTH,
+      STORAGE_KEYS.PENDING_EMAIL_VERIFICATION,
     ]);
   } else {
     localStorage.removeItem(STORAGE_KEYS.TOKENS);
     localStorage.removeItem(STORAGE_KEYS.USER);
-    sessionStorage.removeItem(STORAGE_KEYS.PENDING_AUTH);
+    if (typeof window !== 'undefined' && window.sessionStorage) {
+      window.sessionStorage.removeItem(STORAGE_KEYS.PENDING_AUTH);
+      window.sessionStorage.removeItem(STORAGE_KEYS.PENDING_EMAIL_VERIFICATION);
+    }
+  }
+
+  if (resetStoredCredential) {
+    const localStorageArea = getLocalStorage();
+    if (localStorageArea) {
+      await localStorageArea.remove(STORAGE_KEYS.STORED_CREDENTIAL);
+    } else {
+      localStorage.removeItem(STORAGE_KEYS.STORED_CREDENTIAL);
+    }
   }
 }
 
-// ---- TODO: THINGS TO ADD MANUALLY LATER -----------------------------------
-// 1. LOCK DOWN SESSION STORAGE (security hardening):
-//    Prevent content scripts from reading tokens by restricting access:
-//    if (chrome.storage?.session?.setAccessLevel) {
-//      chrome.storage.session.setAccessLevel({ accessLevel: 'TRUSTED_CONTEXTS' });
-//    }
-//
-// 2. STAY LOGGED IN ACROSS BROWSER RESTARTS (refresh tokens):
-//    If you add 'offline_access' to your scopes (in config.ts), the IdP gives
-//    you a refresh token. Store it in chrome.storage.local instead of session:
-//    await chrome.storage.local.set({ refresh_token: tokens.refreshToken });
-//    Then on startup, check for a refresh token and silently get a new access token.
+/**
+ * Locks down session storage so content scripts cannot inspect tokens.
+ */
+export async function lockDownSessionStorage() {
+  if (chrome?.storage?.session?.setAccessLevel) {
+    await chrome.storage.session.setAccessLevel({ accessLevel: 'TRUSTED_CONTEXTS' });
+  }
+}
