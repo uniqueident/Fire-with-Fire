@@ -23,7 +23,7 @@ export const getExtensionRedirectUri = (): string => {
 
 export const defaultAuthConfig: AuthConfig = {
   // Client ID registered with the IdP (Public Client)
-  clientId: 'YOUR_CLIENT_ID.apps.googleusercontent.com',
+  clientId: '178450922583-7bt787fl10nng1n7e0e99av73d9afvjp.apps.googleusercontent.com',
 
   // Expected issuer URL (must match the 'iss' claim in the returned ID token)
   // Google: 'https://accounts.google.com'

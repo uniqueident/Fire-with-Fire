@@ -1,16 +1,14 @@
 import type {
   AuthTokens,
   PendingAuthState,
-  PendingEmailVerification,
   StoredUserCredential,
   UserProfile,
 } from './types';
 
 /**
- * storage.ts — Secure Browser Storage Manager
+ * storage.ts — Browser Storage Manager for Tokens & Credentials
  *
- * Stores active session tokens, user credentials, and hashed tokens on the browser extension.
- * - Active session tokens: stored in chrome.storage.session (memory-only, wiped on browser exit).
+ * - Active session tokens: stored in chrome.storage.session (memory-only, wiped on exit).
  * - Verified .edu hashed credentials: stored in chrome.storage.local (persists across sessions).
  */
 
@@ -18,7 +16,6 @@ const STORAGE_KEYS = {
   TOKENS: 'sso_auth_tokens',
   USER: 'sso_auth_user',
   PENDING_AUTH: 'sso_pending_auth',
-  PENDING_EMAIL_VERIFICATION: 'sso_pending_email_verification',
   STORED_CREDENTIAL: 'sso_stored_user_credential',
 };
 
@@ -91,7 +88,7 @@ export async function getUserProfile(): Promise<UserProfile | null> {
 }
 
 /**
- * Saves verified .edu user hash to persistent local storage for future SSO / logins.
+ * Saves verified .edu user hash to persistent local storage for future SSO logins.
  */
 export async function saveVerifiedCredential(credential: StoredUserCredential): Promise<void> {
   const storage = getLocalStorage();
@@ -113,43 +110,6 @@ export async function getVerifiedCredential(): Promise<StoredUserCredential | nu
   }
   const item = localStorage.getItem(STORAGE_KEYS.STORED_CREDENTIAL);
   return item ? (JSON.parse(item) as StoredUserCredential) : null;
-}
-
-/**
- * Saves pending email verification state (token + code).
- */
-export async function savePendingEmailVerification(pending: PendingEmailVerification): Promise<void> {
-  const storage = getSessionStorage();
-  if (storage) {
-    await storage.set({ [STORAGE_KEYS.PENDING_EMAIL_VERIFICATION]: pending });
-  } else {
-    sessionStorage.setItem(STORAGE_KEYS.PENDING_EMAIL_VERIFICATION, JSON.stringify(pending));
-  }
-}
-
-/**
- * Retrieves pending email verification state.
- */
-export async function getPendingEmailVerification(): Promise<PendingEmailVerification | null> {
-  const storage = getSessionStorage();
-  if (storage) {
-    const result = await storage.get(STORAGE_KEYS.PENDING_EMAIL_VERIFICATION);
-    return (result[STORAGE_KEYS.PENDING_EMAIL_VERIFICATION] as PendingEmailVerification) || null;
-  }
-  const item = sessionStorage.getItem(STORAGE_KEYS.PENDING_EMAIL_VERIFICATION);
-  return item ? (JSON.parse(item) as PendingEmailVerification) : null;
-}
-
-/**
- * Clears pending email verification state.
- */
-export async function clearPendingEmailVerification(): Promise<void> {
-  const storage = getSessionStorage();
-  if (storage) {
-    await storage.remove(STORAGE_KEYS.PENDING_EMAIL_VERIFICATION);
-  } else {
-    sessionStorage.removeItem(STORAGE_KEYS.PENDING_EMAIL_VERIFICATION);
-  }
 }
 
 /**
@@ -191,7 +151,7 @@ export async function clearPendingAuth(): Promise<void> {
 
 /**
  * Clears active session tokens and user profile on logout.
- * Keeps verified .edu credential hash unless explicitly reset.
+ * Optionally clears persistent credential hash if resetStoredCredential is true.
  */
 export async function clearAuthStorage(resetStoredCredential: boolean = false): Promise<void> {
   const sessionStore = getSessionStorage();
@@ -200,14 +160,12 @@ export async function clearAuthStorage(resetStoredCredential: boolean = false): 
       STORAGE_KEYS.TOKENS,
       STORAGE_KEYS.USER,
       STORAGE_KEYS.PENDING_AUTH,
-      STORAGE_KEYS.PENDING_EMAIL_VERIFICATION,
     ]);
   } else {
     localStorage.removeItem(STORAGE_KEYS.TOKENS);
     localStorage.removeItem(STORAGE_KEYS.USER);
     if (typeof window !== 'undefined' && window.sessionStorage) {
       window.sessionStorage.removeItem(STORAGE_KEYS.PENDING_AUTH);
-      window.sessionStorage.removeItem(STORAGE_KEYS.PENDING_EMAIL_VERIFICATION);
     }
   }
 

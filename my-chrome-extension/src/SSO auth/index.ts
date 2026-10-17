@@ -10,6 +10,4 @@ export * from './pkce';
 export * from './storage';
 export * from './authService';
 export * from './SSOLogin';
-export * from './background';
 export { default } from './SSOLogin';
-

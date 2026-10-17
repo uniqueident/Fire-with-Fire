@@ -3,23 +3,18 @@ import {
   generateCodeChallenge,
   generateCodeVerifier,
   generateNonce,
-  generateRandomString,
   generateState,
-  generateVerificationCode,
   hashTokenAndEmail,
   validateEduEmail,
 } from './pkce';
 import {
   clearAuthStorage,
   clearPendingAuth,
-  clearPendingEmailVerification,
   getPendingAuth,
-  getPendingEmailVerification,
   getTokens,
   getUserProfile,
   getVerifiedCredential,
   savePendingAuth,
-  savePendingEmailVerification,
   saveTokens,
   saveUserProfile,
   saveVerifiedCredential,
@@ -27,22 +22,20 @@ import {
 import type { AuthConfig, AuthState, AuthTokens, UserProfile } from './types';
 
 /**
- * authService.ts — Core Passwordless SSO & .edu Verification Service
+ * authService.ts — Google SSO & .edu Verification Service
  *
- * NO BACKEND REQUIRED:
- * - Passwords are fully eliminated.
- * - Enforces strict .edu email domain requirement.
- * - Securely hashes (email + token + salt) using Web Crypto SHA-256.
- * - Stores the user/token hash securely on the browser extension for persistent SSO access.
+ * Flow:
+ * 1. User launches Google SSO.
+ * 2. User signs in with their university Google account.
+ * 3. Extension verifies the account ends with .edu.
+ * 4. Extension computes SHA-256(email + token) and stores it locally for fast persistent SSO.
  */
 
-const PENDING_AUTH_TIMEOUT_MS = 5 * 60 * 1000;         // 5 minutes for SSO popup
-const EMAIL_VERIFICATION_TTL_MS = 15 * 60 * 1000;     // 15 minutes for email links
+const PENDING_AUTH_TIMEOUT_MS = 5 * 60 * 1000; // 5 minutes for login window
 
-// ----------------------------------------------------------------------------
-// 1. SSO LOGIN FLOW (WITH STRICT .EDU VALIDATION & TOKEN HASHING)
-// ----------------------------------------------------------------------------
-
+/**
+ * Initiates the interactive Google SSO login flow.
+ */
 export async function loginWithSSO(config: AuthConfig = defaultAuthConfig): Promise<AuthState> {
   try {
     // 1. Generate cryptographic security values
@@ -59,6 +52,12 @@ export async function loginWithSSO(config: AuthConfig = defaultAuthConfig): Prom
       timestamp: Date.now(),
     });
 
+    if (config.clientId.includes('YOUR_CLIENT_ID')) {
+      throw new Error(
+        'Setup required: Please set your Google Client ID in "src/SSO auth/config.ts".'
+      );
+    }
+
     // 3. Construct OAuth 2.0 / OIDC Authorization URL
     const params = new URLSearchParams({
       client_id: config.clientId,
@@ -69,13 +68,14 @@ export async function loginWithSSO(config: AuthConfig = defaultAuthConfig): Prom
       nonce: nonce,
       code_challenge: codeChallenge,
       code_challenge_method: 'S256',
+      prompt: 'select_account', // Forces Google account chooser so students can select their .edu account
     });
 
     const authUrl = `${config.authEndpoint}?${params.toString()}`;
 
     if (typeof chrome === 'undefined' || !chrome.identity?.launchWebAuthFlow) {
       throw new Error(
-        'chrome.identity.launchWebAuthFlow is not available. Ensure "identity" is in manifest.json.'
+        'chrome.identity.launchWebAuthFlow is not available. Ensure "identity" is added to manifest.json.'
       );
     }
 
@@ -110,14 +110,14 @@ export async function loginWithSSO(config: AuthConfig = defaultAuthConfig): Prom
 
     if (error) {
       const errorDesc = queryParams.get('error_description') || error;
-      throw new Error(`SSO Error: ${errorDesc}`);
+      throw new Error(`Google SSO Error: ${errorDesc}`);
     }
 
     if (!code) {
       throw new Error('Authorization code missing from redirect callback');
     }
 
-    // 6. Security verification: validate state and TTL
+    // 6. Security verification: validate state and session timeout
     const pendingAuth = await getPendingAuth();
     if (!pendingAuth || pendingAuth.state !== returnedState) {
       throw new Error('Security Error: State mismatch (CSRF protection failed)');
@@ -149,12 +149,12 @@ export async function loginWithSSO(config: AuthConfig = defaultAuthConfig): Prom
     const user = userFromEndpoint || userFromToken;
 
     if (!user || !user.email) {
-      throw new Error('Could not retrieve user email from Identity Provider.');
+      throw new Error('Could not retrieve user email from Google.');
     }
 
     // 9. STRICT .EDU VALIDATION
     if (!validateEduEmail(user.email)) {
-      throw new Error(`Access restricted: ${user.email} is not a valid .edu email address.`);
+      throw new Error(`Access denied: "${user.email}" is not a valid .edu account. Please sign in with your school email.`);
     }
 
     // 10. HASH TOKEN + EMAIL SECURELY FOR BROWSER STORAGE
@@ -169,7 +169,7 @@ export async function loginWithSSO(config: AuthConfig = defaultAuthConfig): Prom
 
     const sessionTokens: AuthTokens = {
       ...tokens,
-      accessToken: hashedLoginToken, // Use secure hash as the active extension token
+      accessToken: hashedLoginToken,
     };
 
     await saveTokens(sessionTokens);
@@ -182,8 +182,8 @@ export async function loginWithSSO(config: AuthConfig = defaultAuthConfig): Prom
       error: null,
     };
   } catch (err: unknown) {
-    const errorMessage = err instanceof Error ? err.message : 'Unknown authentication error';
-    console.error('SSO Login Failed:', errorMessage);
+    const errorMessage = err instanceof Error ? err.message : 'Authentication failed';
+    console.error('Google SSO Failed:', errorMessage);
     await clearPendingAuth();
     return {
       isAuthenticated: false,
@@ -192,133 +192,6 @@ export async function loginWithSSO(config: AuthConfig = defaultAuthConfig): Prom
       error: errorMessage,
     };
   }
-}
-
-// ----------------------------------------------------------------------------
-// 2. PASSWORDLESS EMAIL VERIFICATION (.EDU ONLY)
-// ----------------------------------------------------------------------------
-
-/**
- * Initiates email verification by checking the .edu domain, generating a secure token,
- * and staging the verification link / code.
- */
-export async function requestEduEmailVerification(email: string): Promise<{
-  success: boolean;
-  message: string;
-  verificationCode?: string;
-  verificationLink?: string;
-}> {
-  const normalizedEmail = email.trim().toLowerCase();
-
-  // 1. Strictly enforce .edu domain
-  if (!validateEduEmail(normalizedEmail)) {
-    return {
-      success: false,
-      message: 'Access denied: Only email addresses ending in .edu are authorized.',
-    };
-  }
-
-  // 2. Generate random verification token and 6-digit code
-  const token = generateRandomString(48);
-  const code = generateVerificationCode();
-  const now = Date.now();
-
-  // 3. Save pending verification state in browser storage
-  await savePendingEmailVerification({
-    email: normalizedEmail,
-    token,
-    code,
-    createdAt: now,
-    expiresAt: now + EMAIL_VERIFICATION_TTL_MS,
-  });
-
-  // Construct verification link (can be dispatched via webhook / email service)
-  const redirectBase = defaultAuthConfig.redirectUri || 'https://extension.local/';
-  const verificationLink = `${redirectBase}?verify_email=${encodeURIComponent(normalizedEmail)}&verify_token=${token}`;
-
-  // Log in development console for testing without a backend mail server
-  console.log(`[Email Verification Sent] Email: ${normalizedEmail}`);
-  console.log(`[Verification Code]: ${code}`);
-  console.log(`[Verification Link]: ${verificationLink}`);
-
-  return {
-    success: true,
-    message: `Verification link sent to ${normalizedEmail}. Click the link or enter the 6-digit code.`,
-    verificationCode: code, // Provided for MVP immediate testing
-    verificationLink,
-  };
-}
-
-/**
- * Confirms email verification via the 6-digit code or link token.
- * Generates the SHA-256(email + token) hash and stores it for future SSO logins.
- */
-export async function confirmEmailVerification(codeOrToken: string): Promise<AuthState> {
-  const input = codeOrToken.trim();
-  const pending = await getPendingEmailVerification();
-
-  if (!pending) {
-    return {
-      isAuthenticated: false,
-      tokens: null,
-      user: null,
-      error: 'No pending verification found. Please request a new verification link.',
-    };
-  }
-
-  if (Date.now() > pending.expiresAt) {
-    await clearPendingEmailVerification();
-    return {
-      isAuthenticated: false,
-      tokens: null,
-      user: null,
-      error: 'Verification code expired. Please request a new one.',
-    };
-  }
-
-  // Match either the 6-digit code or the full token
-  if (input !== pending.code && input !== pending.token) {
-    return {
-      isAuthenticated: false,
-      tokens: null,
-      user: null,
-      error: 'Invalid verification code. Please check and try again.',
-    };
-  }
-
-  // 1. Cryptographically hash token and email together
-  const hashedToken = await hashTokenAndEmail(pending.email, pending.token);
-
-  // 2. Store user/token hash permanently on the browser extension for future SSO login
-  await saveVerifiedCredential({
-    email: pending.email,
-    hashedToken,
-    verifiedAt: Date.now(),
-  });
-
-  const tokens: AuthTokens = {
-    accessToken: hashedToken,
-    expiresIn: 30 * 24 * 3600, // 30-day credential validity
-    expiresAt: Date.now() + 30 * 24 * 3600 * 1000,
-  };
-
-  const username = pending.email.split('@')[0];
-  const user: UserProfile = {
-    email: pending.email,
-    username,
-    name: username.charAt(0).toUpperCase() + username.slice(1),
-  };
-
-  await saveTokens(tokens);
-  await saveUserProfile(user);
-  await clearPendingEmailVerification();
-
-  return {
-    isAuthenticated: true,
-    tokens,
-    user,
-    error: null,
-  };
 }
 
 /**
@@ -331,7 +204,7 @@ export async function loginWithSavedEduHash(): Promise<AuthState> {
       isAuthenticated: false,
       tokens: null,
       user: null,
-      error: 'No verified .edu credential found on this extension.',
+      error: 'No verified .edu credential found.',
     };
   }
 
@@ -359,22 +232,21 @@ export async function loginWithSavedEduHash(): Promise<AuthState> {
   };
 }
 
-// ----------------------------------------------------------------------------
-// 3. SESSION LIFECYCLE & HELPERS
-// ----------------------------------------------------------------------------
-
+/**
+ * Checks session state on startup.
+ */
 export async function getInitialAuthState(): Promise<AuthState> {
   const tokens = await getTokens();
   const user = await getUserProfile();
 
-  if (tokens && tokens.accessToken) {
+  if (tokens && tokens.accessToken && user) {
     if (tokens.expiresAt && Date.now() >= tokens.expiresAt) {
       await clearAuthStorage(false);
       return {
         isAuthenticated: false,
         tokens: null,
         user: null,
-        error: 'Session expired. Please verify your email again.',
+        error: 'Session expired. Please sign in with Google again.',
       };
     }
 
@@ -386,7 +258,7 @@ export async function getInitialAuthState(): Promise<AuthState> {
     };
   }
 
-  // Check if a verified .edu credential is ready to resume
+  // Check if a verified .edu credential exists on this device
   const stored = await getVerifiedCredential();
   if (stored && validateEduEmail(stored.email)) {
     return loginWithSavedEduHash();
@@ -400,12 +272,15 @@ export async function getInitialAuthState(): Promise<AuthState> {
   };
 }
 
+/**
+ * Logs out user and clears session tokens.
+ */
 export async function logout(resetStoredCredential: boolean = false): Promise<void> {
   await clearAuthStorage(resetStoredCredential);
 }
 
 // ----------------------------------------------------------------------------
-// 4. OIDC TOKEN & USERINFO HELPERS
+// OIDC TOKEN & USERINFO HELPERS
 // ----------------------------------------------------------------------------
 
 async function exchangeCodeForTokens(

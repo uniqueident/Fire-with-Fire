@@ -1,20 +1,17 @@
 /**
- * pkce.ts — Cryptographic Security Helpers (PKCE, State, Nonce, and Email/Token Hashing)
+ * pkce.ts — Cryptographic Security Helpers (PKCE & SHA-256 Hashing)
  *
- * Implements RFC 7636 (PKCE), OIDC Core, and Web Crypto SHA-256 hashing.
+ * Implements RFC 7636 (PKCE) and Web Crypto SHA-256 hashing.
  */
 
-// Application salt mixed into the token/email hash for added defense against rainbow table attacks
 const APP_HASH_SALT = 'fire-with-fire:edu-sso-salt:v1';
 
 /**
- * Validates that an email has valid syntax and strictly ends with '.edu'.
+ * Validates that an email strictly ends with '.edu' (case-insensitive).
  */
 export function validateEduEmail(email: string): boolean {
   if (!email || typeof email !== 'string') return false;
   const trimmed = email.trim().toLowerCase();
-  
-  // Standard email pattern ending with .edu
   const eduRegex = /^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.edu$/;
   return eduRegex.test(trimmed);
 }
@@ -35,7 +32,7 @@ export function bufferToBase64Url(buffer: ArrayBuffer): string {
 }
 
 /**
- * Converts an ArrayBuffer to a standard hex string.
+ * Converts an ArrayBuffer to a hex string.
  */
 export function bufferToHex(buffer: ArrayBuffer): string {
   const bytes = new Uint8Array(buffer);
@@ -60,18 +57,8 @@ export function generateRandomString(length: number = 64): string {
 }
 
 /**
- * Generates a 6-digit verification code for email confirmation.
- */
-export function generateVerificationCode(): string {
-  const values = new Uint32Array(1);
-  crypto.getRandomValues(values);
-  const code = (values[0] % 900000) + 100000; //any 6 digit #  100000 <= x <= 999999
-  return code.toString();
-}
-
-/**
- * Securely hashes an email and token together using SHA-256 (Web Crypto).
- * Returns the hex digest stored on the browser extension as proof of verification.
+ * Securely hashes an email and token together using SHA-256.
+ * Stored locally on the extension as a verified login token.
  */
 export async function hashTokenAndEmail(email: string, token: string): Promise<string> {
   const normalizedEmail = email.trim().toLowerCase();

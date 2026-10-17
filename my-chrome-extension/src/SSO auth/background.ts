@@ -1,9 +1,2 @@
-
-
-chrome.runtime.onInstalled.addListener(() => {
-  if (chrome.storage?.session?.setAccessLevel) {
-    chrome.storage.session.setAccessLevel({
-      accessLevel: 'TRUSTED_CONTEXTS',
-    });
-  }
-});
+// Re-exports the extension background service worker from src/background.ts
+export * from '../background';
