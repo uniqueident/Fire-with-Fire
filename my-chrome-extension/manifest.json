@@ -1,0 +1,19 @@
+{
+  "manifest_version": 3,
+  "name": "Fire with Fire",
+  "version": "1.0.0",
+  "description": "Chrome Extension with Secure SSO Authentication",
+  "permissions": [
+    "identity",
+    "storage"
+  ],
+  "host_permissions": [
+    "https://accounts.google.com/*",
+    "https://oauth2.googleapis.com/*",
+    "https://www.googleapis.com/*"
+  ],
+  "action": {
+    "default_popup": "index.html"
+  }
+}
+

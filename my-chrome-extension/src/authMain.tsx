@@ -1,11 +1,12 @@
-import React from 'react'; 
+import React from 'react';
+import SSOLogin from './SSO auth/SSOLogin';
 
-const Auth: React.FC = () => (
-  <div className="p-4">
-	  <h1 className="text-lg font-bold">
-		Hello, Chrome Extension!
-	  </h1> 
-  </div> 
-);
+const Auth: React.FC = () => {
+  return (
+    <div className="p-4">
+      <SSOLogin />
+    </div>
+  );
+};
 
 export default Auth;

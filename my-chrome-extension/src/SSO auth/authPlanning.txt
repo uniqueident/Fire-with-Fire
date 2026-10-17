@@ -38,3 +38,11 @@ Goal: Minimal viable OAuth 2.0 + PKCE flow to log a user in and get an access to
    - [ ] Check storage when the extension popup opens to determine if user is logged in.
    - [ ] Logout: clear tokens from storage.
 ============================================================================
+
+Get:
+   Username
+   email
+   password
+
+   store token in browser
+   
