@@ -40,8 +40,9 @@ export default function TalkyWindow() {
 function handleInput(current_text:string) {
     console.log('Input to Ollama:', current_text);
 }
-
+/*
 // Output from Ollama
 function handleOutput(output_text:string) { 
     console.log('Output from Ollama:', output_text);
 }
+    */

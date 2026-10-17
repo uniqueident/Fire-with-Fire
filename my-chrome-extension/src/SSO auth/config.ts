@@ -17,8 +17,7 @@ export const getExtensionRedirectUri = (): string => {
   if (typeof chrome !== 'undefined' && chrome.identity?.getRedirectURL) {
     return chrome.identity.getRedirectURL();
   }
-  // Fallback for development in regular browser tab
-  return 'https://<your-extension-id>.chromiumapp.org/';
+  return '';
 };
 
 export const defaultAuthConfig: AuthConfig = {

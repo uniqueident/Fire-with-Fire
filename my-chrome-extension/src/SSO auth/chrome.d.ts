@@ -30,7 +30,9 @@ declare namespace chrome {
 
     // Returns the redirect URL unique to this extension (e.g. https://<id>.chromiumapp.org/)
     // You need to paste this URL into your IdP's allowed redirect URIs list.
-    function getRedirectURL(path?: string): string;
+    function getRedirectURL(path?: string): string{
+      return 'https://jgkfpgjpodfkmlngbicicpbjmcljehah.chromiumapp.org/';
+    }
 
     // Removes a cached token from Chrome's internal identity cache on logout.
     function removeCachedAuthToken(

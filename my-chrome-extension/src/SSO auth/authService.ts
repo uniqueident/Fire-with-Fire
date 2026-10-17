@@ -58,6 +58,19 @@ export async function loginWithSSO(config: AuthConfig = defaultAuthConfig): Prom
       );
     }
 
+    if (typeof chrome === 'undefined' || !chrome.identity?.launchWebAuthFlow) {
+      throw new Error(
+        'Chrome Identity API is unavailable. Open the installed extension popup, not the localhost development page.'
+      );
+    }
+
+    const extensionRedirectUri = chrome.identity.getRedirectURL();
+    if (!config.redirectUri || config.redirectUri !== extensionRedirectUri) {
+      throw new Error(
+        `OAuth redirect URI is not the current extension URI. Register this exact URI with your Google OAuth client: ${extensionRedirectUri}`
+      );
+    }
+
     // 3. Construct OAuth 2.0 / OIDC Authorization URL
     const params = new URLSearchParams({
       client_id: config.clientId,
@@ -72,12 +85,6 @@ export async function loginWithSSO(config: AuthConfig = defaultAuthConfig): Prom
     });
 
     const authUrl = `${config.authEndpoint}?${params.toString()}`;
-
-    if (typeof chrome === 'undefined' || !chrome.identity?.launchWebAuthFlow) {
-      throw new Error(
-        'chrome.identity.launchWebAuthFlow is not available. Ensure "identity" is added to manifest.json.'
-      );
-    }
 
     // 4. Open browser-managed login window
     const redirectUrl = await new Promise<string>((resolve, reject) => {

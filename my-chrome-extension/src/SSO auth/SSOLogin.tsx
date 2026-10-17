@@ -121,21 +121,29 @@ export const SSOLogin: React.FC = () => {
 
         {showSetupGuide && (
           <div style={setupBoxStyle}>
-            <p style={{ margin: '0 0 6px 0', fontWeight: 'bold', fontSize: '11px' }}>Your Extension Redirect URI:</p>
-            <input
-              type="text"
-              readOnly
-              value={redirectUri}
-              style={inputStyle}
-              onClick={handleCopyRedirectUri}
-            />
-            <button onClick={handleCopyRedirectUri} style={copyButtonStyle}>
-              {copiedRedirect ? '✓ Copied!' : 'Copy Redirect URI'}
-            </button>
-            <ol style={{ fontSize: '10px', color: '#4a5568', paddingLeft: '16px', marginTop: '8px', lineHeight: '1.4' }}>
-              <li>Paste this URI in <strong>Google Cloud Console → Credentials → Authorized redirect URIs</strong>.</li>
-              <li>Copy your Client ID into <code>src/SSO auth/config.ts</code>.</li>
-            </ol>
+            {redirectUri ? (
+              <>
+                <p style={{ margin: '0 0 6px 0', fontWeight: 'bold', fontSize: '11px' }}>Your Extension Redirect URI:</p>
+                <input
+                  type="text"
+                  readOnly
+                  value={redirectUri}
+                  style={inputStyle}
+                  onClick={handleCopyRedirectUri}
+                />
+                <button onClick={handleCopyRedirectUri} style={copyButtonStyle}>
+                  {copiedRedirect ? '✓ Copied!' : 'Copy Redirect URI'}
+                </button>
+                <ol style={{ fontSize: '10px', color: '#4a5568', paddingLeft: '16px', marginTop: '8px', lineHeight: '1.4' }}>
+                  <li>Paste this exact URI in <strong>Google Cloud Console → Credentials → Authorized redirect URIs</strong>.</li>
+                  <li>Confirm the Client ID above belongs to that same OAuth client.</li>
+                </ol>
+              </>
+            ) : (
+              <p style={{ fontSize: '11px', lineHeight: '1.4' }}>
+                Open this popup from the installed Chrome extension to get its redirect URI. A localhost URL is not valid for extension sign-in.
+              </p>
+            )}
           </div>
         )}
       </div>

@@ -6,7 +6,11 @@
   "action": {
     "default_popup": "index.html"
   },
-  "permissions": [],
+  "permissions": [
+    "storage",
+    "identity",
+    "identity.email"
+  ],
   "host_permissions": [
     "http://localhost:11434/*"
   ]
