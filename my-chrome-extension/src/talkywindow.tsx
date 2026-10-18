@@ -9,46 +9,48 @@ export default function TalkyWindow() {
         getModelNames().then(setModelNames);
     }, []);
     return (
-    <div style={containerStyle}>
-      <h2>Talky Window</h2>
-        <input style={controlStyle} type = "text"
+    <main className="talky-panel">
+      <header className="talky-header">
+        <h2 className="talky-title">Talky Window</h2>
+      </header>
+      <div className="talky-fields">
+        <label className="talky-field">
+          <span className="talky-label">Message</span>
+          <input
+            className="talky-control"
+            type="text"
             value={text}
+            placeholder="Type a message..."
             onChange={(e) => setText(e.target.value)}
             onKeyDown={(e) => {
-                    if (e.key === 'Enter') 
-                    {
-                        handleInput(text)
-                        setText('')
-                    }
-                }
-            }
-        />
-        <h3>Selected Model: {selectedModel}</h3>
-        <select style={controlStyle} value={selectedModel} onChange={(e) => setSelectedModel(e.target.value)}>
+              if (e.key === 'Enter') {
+                handleInput(text);
+                setText('');
+              }
+            }}
+          />
+        </label>
+        <label className="talky-field">
+          <span className="talky-label">Selected model</span>
+          <select
+            className="talky-control"
+            value={selectedModel}
+            onChange={(e) => setSelectedModel(e.target.value)}
+          >
+            <option value="" disabled>
+              Choose a model
+            </option>
           {modelNames.map(model => (
             <option key={model} value={model}>
               {model}
             </option>
           ))}
-        </select>
-    </div>
+          </select>
+        </label>
+      </div>
+    </main>
   );
 }
-
-const containerStyle: React.CSSProperties = {
-  width: '300px',
-  margin: '0 auto',
-  padding: '16px',
-  textAlign: 'center',
-  boxSizing: 'border-box',
-};
-
-const controlStyle: React.CSSProperties = {
-  display: 'block',
-  width: '100%',
-  margin: '8px auto',
-  boxSizing: 'border-box',
-};
 
 // Input to Ollama
 function handleInput(current_text:string) {

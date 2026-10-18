@@ -69,6 +69,76 @@ body {
   min-height: 100dvh;
 }
 
+.talky-panel {
+  width: 100%;
+  max-width: 340px;
+  margin: 0 auto;
+  padding: 20px 24px;
+  box-sizing: border-box;
+  color: #234b35;
+  text-align: left;
+}
+
+.talky-header {
+  margin-bottom: 20px;
+  padding-bottom: 14px;
+  border-bottom: 1px solid rgba(60, 64, 67, 0.16);
+  text-align: center;
+}
+
+.talky-title {
+  margin: 0;
+  color: #173b28;
+  font-size: 22px;
+  font-weight: 650;
+  letter-spacing: -0.25px;
+  line-height: 1.3;
+}
+
+.talky-fields {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+.talky-field {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.talky-label {
+  color: #234b35;
+  font-size: 13px;
+  font-weight: 600;
+  line-height: 1.4;
+}
+
+.talky-control {
+  width: 100%;
+  min-height: 44px;
+  padding: 10px 12px;
+  box-sizing: border-box;
+  border: 1px solid #cbd5ce;
+  border-radius: 8px;
+  background: #fff;
+  color: #24352b;
+  font: inherit;
+  font-size: 14px;
+  line-height: 1.4;
+  box-shadow: 0 1px 2px rgba(36, 53, 43, 0.06);
+}
+
+.talky-control::placeholder {
+  color: #78867d;
+}
+
+.talky-control:focus-visible {
+  border-color: #3d7654;
+  outline: 3px solid rgba(61, 118, 84, 0.2);
+  outline-offset: 1px;
+}
+
 .auth-header {
   margin-bottom: 18px;
   padding-bottom: 14px;
@@ -127,48 +197,6 @@ body {
 }
 
 .google-sign-in-button:focus-visible {
-  outline: 3px solid #4285f4;
-  outline-offset: 3px;
-}
-
-.auth-alternative {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  margin: 14px 0 8px;
-  color: #718096;
-  font-size: 12px;
-}
-
-.auth-alternative::before,
-.auth-alternative::after {
-  flex: 1;
-  height: 1px;
-  background: rgba(60, 64, 67, 0.16);
-  content: '';
-}
-
-.guest-access-button {
-  width: 100%;
-  min-height: 44px;
-  padding: 10px 16px;
-  border: 1px solid #8a9a8f;
-  border-radius: 8px;
-  background: transparent;
-  color: #234b35;
-  font: inherit;
-  font-size: 14px;
-  font-weight: 600;
-  cursor: pointer;
-  transition: background-color 150ms ease, border-color 150ms ease;
-}
-
-.guest-access-button:hover {
-  border-color: #234b35;
-  background: rgba(35, 75, 53, 0.08);
-}
-
-.guest-access-button:focus-visible {
   outline: 3px solid #4285f4;
   outline-offset: 3px;
 }

@@ -20,7 +20,6 @@ export const SSOLogin: React.FC<SSOLoginProps> = ({ onAuthChange }) => {
 
   const [loading, setLoading] = useState<boolean>(true);
   const [showVerifiedWindow, setShowVerifiedWindow] = useState(false);
-  const [guestAccess, setGuestAccess] = useState(false);
 
   useEffect(() => {
     getInitialAuthState().then((state) => {
@@ -54,21 +53,12 @@ export const SSOLogin: React.FC<SSOLoginProps> = ({ onAuthChange }) => {
     setLoading(false);
   };
 
-  const handleGuestAccess = () => {
-    setGuestAccess(true);
-    onAuthChange(true);
-  };
-
   if (loading) {
     return (
       <div style={containerStyle}>
         <p style={{ textAlign: 'center', color: '#4a5568', fontSize: '13px' }}>Checking session...</p>
       </div>
     );
-  }
-
-  if (guestAccess) {
-    return null;
   }
 
   // --------------------------------------------------------------------------
@@ -132,16 +122,6 @@ export const SSOLogin: React.FC<SSOLoginProps> = ({ onAuthChange }) => {
         Sign in with Google
       </button>
 
-      <div className="auth-alternative" aria-hidden="true">
-        <span>or</span>
-      </div>
-      <button
-        type="button"
-        className="guest-access-button"
-        onClick={handleGuestAccess}
-      >
-        Continue as guest
-      </button>
     </div>
   );
 };
