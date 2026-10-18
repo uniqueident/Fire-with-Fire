@@ -9,9 +9,9 @@ export default function TalkyWindow() {
         getModelNames().then(setModelNames);
     }, []);
     return (
-    <div>
+    <div style={containerStyle}>
       <h2>Talky Window</h2>
-        <input type = "text"
+        <input style={controlStyle} type = "text"
             value={text}
             onChange={(e) => setText(e.target.value)}
             onKeyDown={(e) => {
@@ -24,7 +24,7 @@ export default function TalkyWindow() {
             }
         />
         <h3>Selected Model: {selectedModel}</h3>
-        <select value={selectedModel} onChange={(e) => setSelectedModel(e.target.value)}>
+        <select style={controlStyle} value={selectedModel} onChange={(e) => setSelectedModel(e.target.value)}>
           {modelNames.map(model => (
             <option key={model} value={model}>
               {model}
@@ -35,6 +35,20 @@ export default function TalkyWindow() {
   );
 }
 
+const containerStyle: React.CSSProperties = {
+  width: '300px',
+  margin: '0 auto',
+  padding: '16px',
+  textAlign: 'center',
+  boxSizing: 'border-box',
+};
+
+const controlStyle: React.CSSProperties = {
+  display: 'block',
+  width: '100%',
+  margin: '8px auto',
+  boxSizing: 'border-box',
+};
 
 // Input to Ollama
 function handleInput(current_text:string) {

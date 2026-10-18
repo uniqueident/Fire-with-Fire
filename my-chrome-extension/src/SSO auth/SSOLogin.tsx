@@ -19,10 +19,12 @@ export const SSOLogin: React.FC<SSOLoginProps> = ({ onAuthChange }) => {
   });
 
   const [loading, setLoading] = useState<boolean>(true);
+  const [showVerifiedWindow, setShowVerifiedWindow] = useState(false);
 
   useEffect(() => {
     getInitialAuthState().then((state) => {
       setAuthState(state);
+      setShowVerifiedWindow(false);
       onAuthChange(state.isAuthenticated && Boolean(state.user));
       setLoading(false);
     });
@@ -32,6 +34,7 @@ export const SSOLogin: React.FC<SSOLoginProps> = ({ onAuthChange }) => {
     setLoading(true);
     const result = await loginWithSSO();
     setAuthState(result);
+    setShowVerifiedWindow(result.isAuthenticated && Boolean(result.user));
     onAuthChange(result.isAuthenticated && Boolean(result.user));
     setLoading(false);
   };
@@ -39,6 +42,7 @@ export const SSOLogin: React.FC<SSOLoginProps> = ({ onAuthChange }) => {
   const handleLogout = async () => {
     setLoading(true);
     await logout(false);
+    setShowVerifiedWindow(false);
     onAuthChange(false);
     setAuthState({
       isAuthenticated: false,
@@ -62,25 +66,29 @@ export const SSOLogin: React.FC<SSOLoginProps> = ({ onAuthChange }) => {
   // --------------------------------------------------------------------------
   if (authState.isAuthenticated && authState.user) {
     return (
-      <div style={containerStyle}>
-        <div style={badgeStyle}>GOOGLE ACCOUNT VERIFIED</div>
-        <h2 style={{ margin: '8px 0', fontSize: '18px' }}>Welcome, {authState.user.name || 'Student'}!</h2>
+      <>
+        {showVerifiedWindow && (
+          <div style={containerStyle}>
+            <div style={badgeStyle}>GOOGLE ACCOUNT VERIFIED</div>
+            <h2 style={{ margin: '8px 0', fontSize: '18px' }}>Welcome, {authState.user.name || 'Student'}!</h2>
 
-        <div style={infoBoxStyle}>
-          <p style={{ margin: '4px 0' }}><strong>Email:</strong> {authState.user.email}</p>
-          <p style={{ margin: '4px 0' }}><strong>Username:</strong> {authState.user.username}</p>
-          <p style={{ fontSize: '11px', color: '#2b6cb0', marginTop: '8px', lineHeight: '1.4' }}>
-            ✓ Verified login stored securely on extension. Future logins will recognize this device.
-          </p>
-        </div>
-
+            <div style={infoBoxStyle}>
+              <p style={{ margin: '4px 0' }}><strong>Email:</strong> {authState.user.email}</p>
+              <p style={{ margin: '4px 0' }}><strong>Username:</strong> {authState.user.username}</p>
+              <p style={{ fontSize: '11px', color: '#2b6cb0', marginTop: '8px', lineHeight: '1.4' }}>
+                ✓ Verified login stored securely on extension. Future logins will recognize this device.
+              </p>
+              <button style = {hideButtonStyle} onClick={() => setShowVerifiedWindow(false)}>
+                Hide menu
+              </button>
+            </div>
+          </div>
+        )}
+        
         <button onClick={handleLogout} style={logoutButtonStyle}>
           Log Out
         </button>
-        <button onClick={handleGoogleLogin} style={logoutButtonStyle}>
-          Switch Accounts
-        </button>
-      </div>
+      </>
     );
   }
 
@@ -119,6 +127,8 @@ const containerStyle: React.CSSProperties = {
   padding: '16px',
   fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif',
   width: '300px',
+  margin: '0 auto',
+  textAlign: 'center',
   boxSizing: 'border-box',
 };
 
@@ -139,18 +149,24 @@ const googleButtonStyle: React.CSSProperties = {
 };
 
 const logoutButtonStyle: React.CSSProperties = {
-  width: '100%',
-  padding: '8px',
+  position: 'fixed',
+  top: '6px',
+  left: '6px',
+  zIndex: 10,
+  padding: '4px 10px',
   backgroundColor: '#e53e3e',
   color: 'white',
   border: 'none',
   borderRadius: '4px',
   cursor: 'pointer',
-  marginTop: '12px',
+  fontSize: '11px',
   fontWeight: 'bold',
 };
 
-
+const hideButtonStyle: React.CSSProperties = {
+  color: '#000000',
+  backgroundColor: '#f7f7f7',
+};
 
 const infoBoxStyle: React.CSSProperties = {
   backgroundColor: '#f7fafc',
@@ -159,6 +175,7 @@ const infoBoxStyle: React.CSSProperties = {
   padding: '12px',
   textAlign: 'left',
   fontSize: '13px',
+  color: '#0f0f0f',
 };
 
 const badgeStyle: React.CSSProperties = {
