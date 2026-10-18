@@ -12,33 +12,20 @@
 declare namespace chrome {
 
   // ---- IDENTITY API --------------------------------------------------------
-  // The "identity" namespace gives the extension the ability to open a
-  // browser-controlled login window (like a Google sign-in popup).
   namespace identity {
 
-    // Describes the options you pass when opening a login window.
-    interface WebAuthFlowDetails {
-      url: string;         // The URL of the sign-in page to open
-      interactive?: boolean; // true = show the popup; false = try silently in background
+    interface TokenDetails {
+      interactive?: boolean;
     }
 
-    // Opens a browser-managed login window and returns the redirect URL after login.
-    function launchWebAuthFlow(
-      details: WebAuthFlowDetails,
-      callback?: (responseUrl?: string) => void
-    ): Promise<string | undefined>;
-
-    // Returns the redirect URL unique to this extension (e.g. https://<id>.chromiumapp.org/)
-    // You need to paste this URL into your IdP's allowed redirect URIs list.
-    function getRedirectURL(path?: string): string{
-      return 'https://jgkfpgjpodfkmlngbicicpbjmcljehah.chromiumapp.org/';
+    interface GetAuthTokenResult {
+      token?: string;
+      grantedScopes?: string[];
     }
 
-    // Removes a cached token from Chrome's internal identity cache on logout.
-    function removeCachedAuthToken(
-      details: { token: string },
-      callback?: () => void
-    ): Promise<void>;
+    // Gets a Google OAuth access token configured in manifest.json.
+    function getAuthToken(details?: TokenDetails): Promise<GetAuthTokenResult>;
+
   }
 
   // ---- STORAGE API ---------------------------------------------------------
@@ -77,6 +64,13 @@ declare namespace chrome {
     const lastError: { message?: string } | undefined;
     // The unique ID of this extension (used to verify message senders).
     const id: string;
+    // Returns the installed extension manifest.
+    function getManifest(): {
+      oauth2?: {
+        client_id?: string;
+        scopes?: string[];
+      };
+    };
     // Sends a message to another part of the extension.
     function sendMessage(message: any, responseCallback?: (response: any) => void): Promise<any>;
     // Listens for messages sent by other parts of the extension.

@@ -7,13 +7,13 @@
 const APP_HASH_SALT = 'fire-with-fire:edu-sso-salt:v1';
 
 /**
- * Validates that an email strictly ends with '.edu' (case-insensitive).
+ * Validates a basic email address without restricting its domain.
  */
-export function validateEduEmail(email: string): boolean {
+export function validateEmailAddress(email: string): boolean {
   if (!email || typeof email !== 'string') return false;
   const trimmed = email.trim().toLowerCase();
-  const eduRegex = /^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.edu$/;
-  return eduRegex.test(trimmed);
+  const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+  return emailRegex.test(trimmed);
 }
 
 /**
