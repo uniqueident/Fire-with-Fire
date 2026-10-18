@@ -4,6 +4,10 @@ const REQUEST_TIMEOUT_MS = 15_000;
 const MAX_PAGES = 5;
 const MAX_FILE_BYTES = 2 * 1024 * 1024;
 const MAX_TEXT_CHARACTERS = 20_000;
+const CACHE_TTL_MS = 30_000;
+const MAX_CACHE_ENTRIES = 100;
+const MIN_REQUEST_INTERVAL_MS = 500;
+const MAX_RATE_LIMIT_WAIT_MS = 30_000;
 
 interface CanvasCourse {
   id: number;
@@ -54,9 +58,19 @@ interface CanvasResponse<T> {
   next?: URL;
 }
 
+interface CachedCanvasResponse {
+  expiresAt: number;
+  data: unknown;
+  next?: string;
+}
+
 export class CanvasClient {
   private readonly baseUrl: URL;
   private readonly token: string;
+  private readonly responseCache = new Map<string, CachedCanvasResponse>();
+  private readonly inFlight = new Map<string, Promise<CanvasResponse<unknown>>>();
+  private requestQueue: Promise<void> = Promise.resolve();
+  private lastRequestAt = 0;
 
   constructor(baseUrl: string, token: string) {
     this.token = token;
@@ -80,12 +94,10 @@ export class CanvasClient {
   }
 
   async listCourseMaterials(courseId: number) {
-    const [modules, pages, files, assignments] = await Promise.all([
-      this.getAll<CanvasModule>(`/api/v1/courses/${courseId}/modules?include%5B%5D=items&per_page=100`),
-      this.getAll<CanvasPage>(`/api/v1/courses/${courseId}/pages?per_page=100`),
-      this.listCourseFiles(courseId),
-      this.listAssignments(courseId, 50),
-    ]);
+    const modules = await this.getAll<CanvasModule>(`/api/v1/courses/${courseId}/modules?include%5B%5D=items&per_page=100`);
+    const pages = await this.getAll<CanvasPage>(`/api/v1/courses/${courseId}/pages?per_page=100`);
+    const files = await this.listCourseFiles(courseId);
+    const assignments = await this.listAssignments(courseId, 50);
 
     return {
       courseId,
@@ -142,9 +154,8 @@ export class CanvasClient {
     if (!file.url) throw new Error("Canvas did not provide a download URL for this file.");
 
     const downloadUrl = this.validateDownloadUrl(file.url);
-    const response = await fetch(downloadUrl, {
+    const response = await this.fetchWithRateLimit(downloadUrl, {
       headers: downloadUrl.origin === this.baseUrl.origin ? this.authorizationHeaders() : undefined,
-      signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
     });
     if (!response.ok) throw this.responseError(response.status);
 
@@ -198,9 +209,41 @@ export class CanvasClient {
   }
 
   private async getResponse<T>(url: URL): Promise<CanvasResponse<T>> {
-    const response = await fetch(url, {
+    const cacheKey = url.href;
+    const cached = this.responseCache.get(cacheKey);
+    if (cached && cached.expiresAt > Date.now()) {
+      return {
+        data: cached.data as T,
+        next: cached.next ? new URL(cached.next) : undefined,
+      };
+    }
+    if (cached) this.responseCache.delete(cacheKey);
+
+    const pending = this.inFlight.get(cacheKey);
+    if (pending) return pending as Promise<CanvasResponse<T>>;
+
+    const request = this.fetchJsonResponse<T>(url);
+    this.inFlight.set(cacheKey, request as Promise<CanvasResponse<unknown>>);
+    try {
+      const result = await request;
+      if (this.responseCache.size >= MAX_CACHE_ENTRIES) {
+        const oldestKey = this.responseCache.keys().next().value;
+        if (oldestKey) this.responseCache.delete(oldestKey);
+      }
+      this.responseCache.set(cacheKey, {
+        expiresAt: Date.now() + CACHE_TTL_MS,
+        data: result.data,
+        next: result.next?.href,
+      });
+      return result;
+    } finally {
+      this.inFlight.delete(cacheKey);
+    }
+  }
+
+  private async fetchJsonResponse<T>(url: URL): Promise<CanvasResponse<T>> {
+    const response = await this.fetchWithRateLimit(url, {
       headers: this.authorizationHeaders(),
-      signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
     });
     if (!response.ok) throw this.responseError(response.status);
 
@@ -214,6 +257,48 @@ export class CanvasClient {
     }
 
     return { data: await response.json() as T, next };
+  }
+
+  private async fetchWithRateLimit(url: URL, init: RequestInit): Promise<Response> {
+    const makeRequest = async () => {
+      await this.waitForRequestSlot();
+      return fetch(url, { ...init, signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS) });
+    };
+
+    let response = await makeRequest();
+    if (response.status !== 429) return response;
+
+    const retryAfter = this.retryDelay(response.headers.get("Retry-After"));
+    await response.body?.cancel();
+    await new Promise((resolve) => setTimeout(resolve, retryAfter));
+    response = await makeRequest();
+    return response;
+  }
+
+  private async waitForRequestSlot(): Promise<void> {
+    const previous = this.requestQueue;
+    let release = () => {};
+    this.requestQueue = new Promise<void>((resolve) => { release = resolve; });
+    await previous;
+
+    try {
+      const waitMs = MIN_REQUEST_INTERVAL_MS - (Date.now() - this.lastRequestAt);
+      if (waitMs > 0) await new Promise((resolve) => setTimeout(resolve, waitMs));
+      this.lastRequestAt = Date.now();
+    } finally {
+      release();
+    }
+  }
+
+  private retryDelay(retryAfter: string | null): number {
+    if (!retryAfter) return 1_000;
+
+    const seconds = Number(retryAfter);
+    const delay = Number.isFinite(seconds)
+      ? seconds * 1_000
+      : Date.parse(retryAfter) - Date.now();
+    if (!Number.isFinite(delay)) return 1_000;
+    return Math.min(MAX_RATE_LIMIT_WAIT_MS, Math.max(0, delay));
   }
 
   private apiUrl(path: string): URL {

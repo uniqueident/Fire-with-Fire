@@ -8,7 +8,7 @@
     "dev:all": "node scripts/dev-all.mjs",
     "build": "tsc -b && vite build",
     "build:mcp": "tsc -p tsconfig.mcp.json",
-    "bridge": "npm run build:mcp && node --env-file=src/.env mcp-dist/index.js --bridge",
+    "bridge": "npm run build:mcp && node --env-file=src/.env mcp-dist/index.js --bridge --dev",
     "lint": "eslint .",
     "preview": "vite preview"
   },

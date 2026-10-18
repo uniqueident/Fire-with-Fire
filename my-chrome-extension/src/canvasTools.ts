@@ -29,7 +29,6 @@ export const canvasReadTool: OllamaTool = {
         limit: { type: 'integer', minimum: 1, maximum: 50 },
       },
       required: ['action'],
-      additionalProperties: false,
     },
   },
 };
@@ -42,10 +41,13 @@ export async function callCanvasReadTool(
     throw new Error(`Unknown local tool: ${name}`);
   }
 
+  const normalizedArgs = Object.fromEntries(
+    Object.entries(args).filter(([, value]) => value !== null && value !== undefined),
+  );
   const response = await fetch(CANVAS_BRIDGE_URL, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(args),
+    body: JSON.stringify(normalizedArgs),
   });
   const result = await response.json() as { error?: string };
   if (!response.ok) {
