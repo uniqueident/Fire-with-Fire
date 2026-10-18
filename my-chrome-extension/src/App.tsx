@@ -1,5 +1,3 @@
-import { useState } from "react";
-import Auth from "./authMain";
 import TalkyWindow from "./talkywindow";
 import menteLogo from "./assets/Mente Logo.png";
 import "./App.css";
