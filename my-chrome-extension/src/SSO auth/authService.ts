@@ -1,8 +1,4 @@
-import {
-  CHROME_OAUTH_CLIENT_ID_PLACEHOLDER,
-  defaultAuthConfig,
-  getChromeOAuthClientId,
-} from './config';
+import { defaultAuthConfig, getChromeOAuthClientId } from './config';
 import {
   hashTokenAndEmail,
   validateEmailAddress,
@@ -34,7 +30,7 @@ import type { AuthConfig, AuthState, AuthTokens, UserProfile } from './types';
 export async function loginWithSSO(config: AuthConfig = defaultAuthConfig): Promise<AuthState> {
   try {
     const clientId = getChromeOAuthClientId();
-    if (!clientId || clientId === CHROME_OAUTH_CLIENT_ID_PLACEHOLDER) {
+    if (!clientId) {
       throw new Error(
         'Setup required: Create a Google OAuth client of type Chrome Extension for this extension ID, then put its client ID in manifest.json under oauth2.client_id.'
       );
