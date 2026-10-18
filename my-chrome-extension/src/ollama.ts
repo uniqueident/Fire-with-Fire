@@ -14,9 +14,27 @@ const JSON_HEADERS = { 'Content-Type': 'application/json' };
 // ---------------------------------------------------------------------------
 
 export interface OllamaMessage {
-  role: 'system' | 'user' | 'assistant';
+  role: 'system' | 'user' | 'assistant' | 'tool';
   content: string;
   images?: string[]; // base64-encoded images (multimodal models)
+  tool_calls?: OllamaToolCall[];
+  tool_name?: string;
+}
+
+export interface OllamaToolCall {
+  function: {
+    name: string;
+    arguments: Record<string, unknown>;
+  };
+}
+
+export interface OllamaTool {
+  type: 'function';
+  function: {
+    name: string;
+    description: string;
+    parameters: Record<string, unknown>;
+  };
 }
 
 export interface OllamaOptions {
@@ -54,6 +72,7 @@ export interface GenerateResponse {
 export interface ChatRequest {
   model: string;
   messages: OllamaMessage[];
+  tools?: OllamaTool[];
   stream?: boolean;
   options?: OllamaOptions;
 }
