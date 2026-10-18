@@ -9,6 +9,12 @@ const OLLAMA_BASE = 'http://localhost:11434';
 
 const JSON_HEADERS = { 'Content-Type': 'application/json' };
 
+async function throwOllamaError(path: string, response: Response): Promise<never> {
+  const detail = (await response.text()).trim().slice(0, 500);
+  const message = `Ollama ${path} failed: ${response.status} ${response.statusText}`;
+  throw new Error(detail ? `${message}: ${detail}` : message);
+}
+
 // ---------------------------------------------------------------------------
 // Types
 // ---------------------------------------------------------------------------
@@ -119,7 +125,7 @@ async function postJSON<T>(path: string, body: unknown): Promise<T> {
     body: JSON.stringify(body),
   });
 
-  if (!res.ok) throw new Error(`Ollama ${path} failed: ${res.status} ${res.statusText}`);
+  if (!res.ok) await throwOllamaError(path, res);
   return res.json() as Promise<T>;
 }
 
@@ -148,7 +154,7 @@ export async function embeddings(req: EmbeddingsRequest): Promise<EmbeddingsResp
 export async function listModels(): Promise<ListModelsResponse> {
   const res = await fetch(`${OLLAMA_BASE}/api/tags`);
 
-  if (!res.ok) throw new Error(`Ollama /api/tags failed: ${res.status} ${res.statusText}`);
+  if (!res.ok) await throwOllamaError('/api/tags', res);
   return res.json() as Promise<ListModelsResponse>;
 }
 
