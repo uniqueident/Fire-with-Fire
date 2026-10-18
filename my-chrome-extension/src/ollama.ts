@@ -80,6 +80,7 @@ export interface ChatRequest {
   model: string;
   messages: OllamaMessage[];
   tools?: OllamaTool[];
+  think?: boolean;
   stream?: boolean;
   options?: OllamaOptions;
 }

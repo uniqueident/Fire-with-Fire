@@ -4,8 +4,13 @@
   "name": "My Chrome Extension",
   "version": "1.0.0",
   "description": "A Chrome extension built with Vite and React",
+  "icons": {
+    "48": "src/assets/Mente Logo.png",
+    "128": "src/assets/Mente Logo.png"
+  },
   "action": {
-    "default_title": "Open Mente"
+    "default_title": "Open Mente",
+    "default_icon": "src/assets/Mente Logo.png"
   },
   "background": {
     "service_worker": "src/background.ts",

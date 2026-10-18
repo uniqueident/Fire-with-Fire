@@ -5,6 +5,10 @@ import manifest from './manifest.json' with {type: 'json'}
 
 // https://vite.dev/config/
 export default defineConfig({
+  server: {
+    port: 5173,
+    strictPort: true,
+  },
   plugins: [
     react(), crx({ manifest }),
   ],
