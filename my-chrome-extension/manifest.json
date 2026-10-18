@@ -1,4 +1,5 @@
 {
+  "key": "MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAw/uSfhcTzO+nZ6BVme2E8zsqi+nz5HlcwFNU0AFrRsZx0AmQvT3q0IA4IrkJXj16RKDlE+yS/4Lba5CZNV+27onOGdZ16mjsF0ZjlOo8BZYwg4JbaeMC+q9cCcnTKnLjqA4VsA9g9/aTNJhvqbYmwE/3jb6nk6yANXZpFnpsWeKiZRFMljKQQmPLuEIgHTqj1LVfXXC0GCMlt6pPBTG4T3ludKn513j1sxfvYC5Ls7taxQzq/LY6biO6EcBc6eR9GPfrEa8Qjq9eFM8UStRxQwxwF945Drdi3NDzK4jMbD5AG6LeU+zUrW9nva3w70jxjxbMKB9iTe+cBrEZhR2R6wIDAQAB",
   "manifest_version": 3,
   "name": "My Chrome Extension",
   "version": "1.0.0",
@@ -19,7 +20,7 @@
     "sidePanel"
   ],
   "oauth2": {
-    "client_id": "178450922583-p71p8n8dr95qn2va4o9u68ltfpc70mio.apps.googleusercontent.com",
+    "client_id": "178450922583-sibs1lbeue22r4l5ma6glkmvfjb6jo94.apps.googleusercontent.com",
     "scopes": [
       "https://www.googleapis.com/auth/userinfo.email",
       "https://www.googleapis.com/auth/userinfo.profile"
