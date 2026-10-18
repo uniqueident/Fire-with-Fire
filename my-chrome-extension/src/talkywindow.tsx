@@ -6,7 +6,7 @@ export default function TalkyWindow() {
     const [text,setText] = React.useState('');
     const [selectedModel,setSelectedModel] = React.useState('');
     const [modelNames,setModelNames] = React.useState<string[]>([]);
-
+  //this should be the talky.
     React.useEffect(() => {
         getModelNames().then(names => {
             setModelNames(names);
