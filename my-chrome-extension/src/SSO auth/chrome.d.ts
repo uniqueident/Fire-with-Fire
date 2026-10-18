@@ -11,6 +11,11 @@
 
 declare namespace chrome {
 
+  // ---- SIDE PANEL API ------------------------------------------------------
+  namespace sidePanel {
+    function setPanelBehavior(options: { openPanelOnActionClick: boolean }): Promise<void>;
+  }
+
   // ---- IDENTITY API --------------------------------------------------------
   namespace identity {
 
