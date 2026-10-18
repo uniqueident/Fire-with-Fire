@@ -3,14 +3,10 @@ import { ChatMessages, getModelNames } from './ollamawrap';
 import type { ChatResponse } from './ollama';
 
 export default function TalkyWindow() {
-    const [greeting] = React.useState(() => greetings[Math.floor(Math.random() * greetings.length)]);
-    const [text, setText] = React.useState('');
-    const [selectedModel, setSelectedModel] = React.useState('');
-    const [modelNames, setModelNames] = React.useState<string[]>([]);
-    const [response, setResponse] = React.useState('');
-    const [error, setError] = React.useState('');
-    const [isResponding, setIsResponding] = React.useState(false);
-
+    const [text,setText] = React.useState('');
+    const [selectedModel,setSelectedModel] = React.useState('');
+    const [modelNames,setModelNames] = React.useState<string[]>([]);
+  //this should be the talky.
     React.useEffect(() => {
         getModelNames().then(names => {
             setModelNames(names);
