@@ -3,9 +3,13 @@ import { ChatMessages, getModelNames } from './ollamawrap';
 import type { ChatResponse } from './ollama';
 
 export default function TalkyWindow() {
-    const [text,setText] = React.useState('');
-    const [selectedModel,setSelectedModel] = React.useState('');
-    const [modelNames,setModelNames] = React.useState<string[]>([]);
+    const [greeting] = React.useState(() => greetings[Math.floor(Math.random() * greetings.length)]);
+    const [text, setText] = React.useState('');
+    const [selectedModel, setSelectedModel] = React.useState('');
+    const [modelNames, setModelNames] = React.useState<string[]>([]);
+    const [response, setResponse] = React.useState('');
+    const [error, setError] = React.useState('');
+    const [isResponding, setIsResponding] = React.useState(false);
 
     React.useEffect(() => {
         getModelNames().then(names => {
@@ -40,6 +44,14 @@ export default function TalkyWindow() {
             </option>
           ))}
         </select>
+        {isResponding && <p role="status">Waiting for a response…</p>}
+        {error && <p role="alert">{error}</p>}
+        {response && (
+          <section aria-live="polite" style={responseStyle}>
+            <h3>AI Response</h3>
+            <p style={responseTextStyle}>{response}</p>
+          </section>
+        )}
     </div>
   );
 }

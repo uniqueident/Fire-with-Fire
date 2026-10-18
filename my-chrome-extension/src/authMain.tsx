@@ -1,10 +1,14 @@
 import React from 'react';
 import SSOLogin from './SSO auth/SSOLogin';
 
-const Auth: React.FC = () => {
+interface AuthProps {
+  onAuthChange: (isAuthenticated: boolean) => void;
+}
+
+const Auth: React.FC<AuthProps> = ({ onAuthChange }) => {
   return (
     <div className="p-4">
-      <SSOLogin />
+      <SSOLogin onAuthChange={onAuthChange} />
     </div>
   );
 };
