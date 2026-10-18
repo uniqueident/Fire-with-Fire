@@ -150,8 +150,8 @@ const googleButtonStyle: React.CSSProperties = {
 
 const logoutButtonStyle: React.CSSProperties = {
   position: 'fixed',
-  top: '6px',
-  left: '6px',
+  top: '14px',
+  right: '14px',
   zIndex: 10,
   padding: '4px 10px',
   backgroundColor: '#e53e3e',
