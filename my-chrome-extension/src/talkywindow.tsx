@@ -40,14 +40,6 @@ export default function TalkyWindow() {
             </option>
           ))}
         </select>
-        {isResponding && <p role="status">Waiting for a response…</p>}
-        {error && <p role="alert">{error}</p>}
-        {response && (
-          <section aria-live="polite" style={responseStyle}>
-            <h3>AI Response</h3>
-            <p style={responseTextStyle}>{response}</p>
-          </section>
-        )}
     </div>
   );
 }
