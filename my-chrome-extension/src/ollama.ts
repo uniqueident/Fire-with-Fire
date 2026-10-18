@@ -148,9 +148,7 @@ export async function embeddings(req: EmbeddingsRequest): Promise<EmbeddingsResp
 export async function listModels(): Promise<ListModelsResponse> {
   const res = await fetch(`${OLLAMA_BASE}/api/tags`);
 
-  if (!res.ok){
-    return res.json()
-  };
+  if (!res.ok) throw new Error(`Ollama /api/tags failed: ${res.status} ${res.statusText}`);
   return res.json() as Promise<ListModelsResponse>;
 }
 

@@ -1,64 +1,116 @@
-import React from 'react'; 
+import React from 'react';
 import { ChatMessages, getModelNames } from './ollamawrap';
-import type { ChatResponse } from './ollama';
+
+interface ConversationMessage {
+  role: 'user' | 'assistant';
+  content: string;
+}
 
 export default function TalkyWindow() {
-    const [text,setText] = React.useState('');
-    const [selectedModel,setSelectedModel] = React.useState('');
-    const [modelNames,setModelNames] = React.useState<string[]>([]);
-  //this should be the talky.
-    React.useEffect(() => {
-        getModelNames().then(names => {
-            setModelNames(names);
-            if (names.length > 0) {
-                setSelectedModel(names[0]);
-            }
-        });
-    }, []);
+  const [text, setText] = React.useState('');
+  const [selectedModel, setSelectedModel] = React.useState('');
+  const [modelNames, setModelNames] = React.useState<string[]>([]);
+  const [messages, setMessages] = React.useState<ConversationMessage[]>([]);
+  const [isSending, setIsSending] = React.useState(false);
+  const [error, setError] = React.useState('');
 
-    return (
-    <div>
-      <h3>Say Hi to Mente!</h3>
-      <></>
-        <input type = "text"
-            value={text}
-            onChange={(e) => setText(e.target.value)}
-            onKeyDown={(e) => {
-                    if (e.key === 'Enter') 
-                    {
-                        handleInput(text, selectedModel);
-                        setText('')
-                    }
-                }
+  React.useEffect(() => {
+    getModelNames()
+      .then((names) => {
+        setModelNames(names);
+        if (names.length > 0) {
+          setSelectedModel(names[0]);
+        }
+      })
+      .catch((err: unknown) => {
+        setError(getErrorMessage(err));
+      });
+  }, []);
+
+  const handleSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    const prompt = text.trim();
+    if (!prompt || !selectedModel || isSending) return;
+
+    setText('');
+    setError('');
+    setMessages((current) => [...current, { role: 'user', content: prompt }]);
+    setIsSending(true);
+
+    try {
+      const response = await ChatMessages(prompt, selectedModel);
+      setMessages((current) => [
+        ...current,
+        { role: 'assistant', content: response.message.content },
+      ]);
+    } catch (err) {
+      setError(getErrorMessage(err));
+    } finally {
+      setIsSending(false);
+    }
+  };
+
+  return (
+    <section className="chat-window" aria-label="Chat with Mente">
+      <div className="chat-heading">
+        <h1>Say hi to Mente</h1>
+        <label className="model-picker">
+          <span>Model</span>
+          <select
+            aria-label="AI model"
+            value={selectedModel}
+            onChange={(event) => setSelectedModel(event.target.value)}
+            disabled={modelNames.length === 0 || isSending}
+          >
+            {modelNames.length === 0 && <option value="">No models available</option>}
+            {modelNames.map((model) => (
+              <option key={model} value={model}>
+                {model}
+              </option>
+            ))}
+          </select>
+        </label>
+      </div>
+
+      <div className="chat-messages" aria-live="polite" aria-relevant="additions">
+        {messages.length === 0 && (
+          <p className="chat-empty">Your conversation with Mente will appear here.</p>
+        )}
+        {messages.map((message, index) => (
+          <article className={`chat-message ${message.role}`} key={`${index}-${message.role}`}>
+            <span className="message-role">{message.role === 'user' ? 'You' : 'Mente'}</span>
+            <p>{message.content}</p>
+          </article>
+        ))}
+        {isSending && <p className="chat-status" role="status">Mente is responding…</p>}
+      </div>
+
+      {error && <p className="chat-error" role="alert">{error}</p>}
+
+      <form className="prompt-form" onSubmit={handleSubmit}>
+        <label className="prompt-label" htmlFor="user-prompt">Your prompt</label>
+        <textarea
+          id="user-prompt"
+          value={text}
+          onChange={(event) => setText(event.target.value)}
+          onKeyDown={(event) => {
+            if (event.key === 'Enter' && !event.shiftKey) {
+              event.preventDefault();
+              event.currentTarget.form?.requestSubmit();
             }
+          }}
+          placeholder="Ask Mente something..."
+          rows={3}
+          disabled={isSending || !selectedModel}
         />
-        <div></div>
-        <select value={selectedModel} onChange={(e) => setSelectedModel(e.target.value)}>
-          {modelNames.map(model => (
-            <option key={model} value={model}>
-              {model}
-            </option>
-          ))}
-        </select>
-    </div>
+        <button type="submit" disabled={isSending || !selectedModel || !text.trim()}>
+          {isSending ? 'Sending…' : 'Send prompt'}
+        </button>
+      </form>
+    </section>
   );
 }
 
-// Input to Ollama
-function handleInput(current_text:string, selected_model:string) {
-    console.log('Input to Ollama:', current_text);
-    console.log('Selected Model:', selected_model);
-    const response = ChatMessages(current_text, selected_model);
-
-    response.then((output_text:ChatResponse) => {
-        handleOutput(output_text);
-    }).catch((err) => {
-        console.error('Error handling output from Ollama:', err);
-    });
-
-}
-
-// Output from Ollama
-function handleOutput(output_text:ChatResponse) { 
-    console.log('Output from Ollama:', output_text.message);
+function getErrorMessage(error: unknown): string {
+  return error instanceof Error ? error.message : String(error);
 }

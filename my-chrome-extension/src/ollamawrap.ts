@@ -6,11 +6,10 @@ let count = 0;
 export async function getModelNames(): Promise<string[]> {
   try {
     const data = await listModels();
-    //Map turns the array of ModelInfo interfaces into an array of the model names.
     return data.models.map(m => m.name);
   } catch (err) {
-    console.log('Error fetching model names from Ollama:', err);
-    return ['Failed to get model names from Ollama:'];
+    console.error('Error fetching model names from Ollama:', err);
+    throw err;
   }
 }
 
