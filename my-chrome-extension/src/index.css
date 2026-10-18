@@ -131,6 +131,48 @@ body {
   outline-offset: 3px;
 }
 
+.auth-alternative {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin: 14px 0 8px;
+  color: #718096;
+  font-size: 12px;
+}
+
+.auth-alternative::before,
+.auth-alternative::after {
+  flex: 1;
+  height: 1px;
+  background: rgba(60, 64, 67, 0.16);
+  content: '';
+}
+
+.guest-access-button {
+  width: 100%;
+  min-height: 44px;
+  padding: 10px 16px;
+  border: 1px solid #8a9a8f;
+  border-radius: 8px;
+  background: transparent;
+  color: #234b35;
+  font: inherit;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background-color 150ms ease, border-color 150ms ease;
+}
+
+.guest-access-button:hover {
+  border-color: #234b35;
+  background: rgba(35, 75, 53, 0.08);
+}
+
+.guest-access-button:focus-visible {
+  outline: 3px solid #4285f4;
+  outline-offset: 3px;
+}
+
 h1,
 h2 {
   font-family: var(--heading);
