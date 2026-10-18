@@ -6,8 +6,19 @@
   "action": {
     "default_popup": "index.html"
   },
-  "permissions": [],
+  "permissions": [
+    "storage",
+    "identity"
+  ],
+  "oauth2": {
+    "client_id": "178450922583-p71p8n8dr95qn2va4o9u68ltfpc70mio.apps.googleusercontent.com",
+    "scopes": [
+      "https://www.googleapis.com/auth/userinfo.email",
+      "https://www.googleapis.com/auth/userinfo.profile"
+    ]
+  },
   "host_permissions": [
-    "http://localhost:11434/*"
+    "http://localhost:11434/*",
+    "https://www.googleapis.com/*"
   ]
 }

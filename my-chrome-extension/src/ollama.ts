@@ -134,7 +134,7 @@ export async function generate(req: GenerateRequest): Promise<GenerateResponse> 
   return postJSON<GenerateResponse>('/api/generate', { ...req, stream: false });
 }
 
-/** Multi-turn chat (streaming) text. */
+/** Multi-turn chat completion. */
 export async function chat(req: ChatRequest): Promise<ChatResponse> {
   return postJSON<ChatResponse>('/api/chat', { ...req, stream: false });
 }
