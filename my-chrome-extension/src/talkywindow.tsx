@@ -1,18 +1,6 @@
-import React from 'react';
-import menteLogo from './assets/Mente Logo.png';
-import { chat } from './ollama';
-import { getModelNames } from './ollamawrap';
-
-const greetings = [
-    'Ready to learn?',
-    'What are we studying today?',
-    'it\'s thinking time!',
-    'Come do a thinker with a stinker!',
-    'What\'s on your mind?',
-    'Consider the following:',
-    'How can I help?',
-    'let\'s brainstorm.'
-];
+import React from 'react'; 
+import { ChatMessages, getModelNames } from './ollamawrap';
+import type { ChatResponse } from './ollama';
 
 export default function TalkyWindow() {
     const [greeting] = React.useState(() => greetings[Math.floor(Math.random() * greetings.length)]);
@@ -24,63 +12,32 @@ export default function TalkyWindow() {
     const [isResponding, setIsResponding] = React.useState(false);
 
     React.useEffect(() => {
-        getModelNames().then(setModelNames);
+        getModelNames().then(names => {
+            setModelNames(names);
+            if (names.length > 0) {
+                setSelectedModel(names[0]);
+            }
+        });
     }, []);
 
-    async function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
-        event.preventDefault();
-        const prompt = text.trim();
-        if (!prompt || !selectedModel || isResponding) return;
-
-        setText('');
-        setResponse('');
-        setError('');
-        setIsResponding(true);
-
-        try {
-            const result = await chat({
-                model: selectedModel,
-                messages: [{ role: 'user', content: prompt }],
-            });
-            setResponse(result.message.content);
-        } catch (err) {
-            setError(err instanceof Error ? err.message : 'Failed to get a response from Ollama.');
-        } finally {
-            setIsResponding(false);
-        }
-    }
-
     return (
-    <div style={containerStyle}>
-      <header style={headerStyle}>
-        <h2 style={headingStyle}>{greeting}</h2>
-        <img src={menteLogo} alt="Mente logo" style={logoStyle} />
-      </header>
-        <form onSubmit={handleSubmit}>
-          <label htmlFor="talky-prompt">Your message</label>
-          <input
-            id="talky-prompt"
-            style={controlStyle}
-            type="text"
+    <div>
+      <h3>Say Hi to Mente!</h3>
+      <></>
+        <input type = "text"
             value={text}
             onChange={(e) => setText(e.target.value)}
-          />
-          <button
-            style={controlStyle}
-            type="submit"
-            disabled={!text.trim() || !selectedModel || isResponding}
-          >
-            {isResponding ? 'Thinking…' : 'Send'}
-          </button>
-        </form>
-        <h3>Selected Model: {selectedModel}</h3>
-        <select
-          style={controlStyle}
-          value={selectedModel}
-          onChange={(e) => setSelectedModel(e.target.value)}
-          aria-label="Select AI model"
-        >
-          <option value="">Select a model</option>
+            onKeyDown={(e) => {
+                    if (e.key === 'Enter') 
+                    {
+                        handleInput(text, selectedModel);
+                        setText('')
+                    }
+                }
+            }
+        />
+        <div></div>
+        <select value={selectedModel} onChange={(e) => setSelectedModel(e.target.value)}>
           {modelNames.map(model => (
             <option key={model} value={model}>
               {model}
@@ -99,47 +56,21 @@ export default function TalkyWindow() {
   );
 }
 
-const containerStyle: React.CSSProperties = {
-  width: '300px',
-  margin: '0 auto',
-  padding: '16px',
-  textAlign: 'center',
-  boxSizing: 'border-box',
-};
+// Input to Ollama
+function handleInput(current_text:string, selected_model:string) {
+    console.log('Input to Ollama:', current_text);
+    console.log('Selected Model:', selected_model);
+    const response = ChatMessages(current_text, selected_model);
 
-const headerStyle: React.CSSProperties = {
-  display: 'flex',
-  alignItems: 'center',
-  justifyContent: 'space-between',
-  gap: '8px',
-  marginBottom: '16px',
-};
+    response.then((output_text:ChatResponse) => {
+        handleOutput(output_text);
+    }).catch((err) => {
+        console.error('Error handling output from Ollama:', err);
+    });
 
-const headingStyle: React.CSSProperties = {
-  flex: 1,
-  margin: 0,
-  fontSize: '18px',
-};
+}
 
-const logoStyle: React.CSSProperties = {
-  width: '48px',
-  height: '48px',
-  objectFit: 'contain',
-};
-
-const controlStyle: React.CSSProperties = {
-  display: 'block',
-  width: '100%',
-  margin: '8px auto',
-  boxSizing: 'border-box',
-};
-
-const responseStyle: React.CSSProperties = {
-  marginTop: '16px',
-  textAlign: 'left',
-};
-
-const responseTextStyle: React.CSSProperties = {
-  whiteSpace: 'pre-wrap',
-  overflowWrap: 'anywhere',
-};
+// Output from Ollama
+function handleOutput(output_text:ChatResponse) { 
+    console.log('Output from Ollama:', output_text.message);
+}

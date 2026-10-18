@@ -123,13 +123,15 @@ async function postJSON<T>(path: string, body: unknown): Promise<T> {
   return res.json() as Promise<T>;
 }
 
+
+
 // ---------------------------------------------------------------------------
 // API functions
 // ---------------------------------------------------------------------------
 
 /** Single-turn completion (streaming). */
 export async function generate(req: GenerateRequest): Promise<GenerateResponse> {
-  return postJSON<GenerateResponse>('/api/generate', { ...req, stream: true });
+  return postJSON<GenerateResponse>('/api/generate', { ...req, stream: false });
 }
 
 /** Multi-turn chat completion. */
