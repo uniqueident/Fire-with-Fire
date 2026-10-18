@@ -97,16 +97,22 @@ export const SSOLogin: React.FC<SSOLoginProps> = ({ onAuthChange }) => {
   // --------------------------------------------------------------------------
   return (
     <div style={containerStyle}>
-      <h2 style={{ marginBottom: '4px', fontSize: '18px' }}>Student Sign In</h2>
-      <p style={{ fontSize: '12px', color: '#718096', marginBottom: '16px' }}>
-        Sign in with the Google account for this Chrome profile. Use a different Chrome profile to sign in as another account.
-      </p>
+      <header className="auth-header">
+        <h2 className="auth-header-title">Student Sign In</h2>
+        <p className="auth-header-description">
+          Sign in with the Google account for this Chrome profile. Use a different Chrome profile to sign in as another account.
+        </p>
+      </header>
 
       {/* Error Message */}
       {authState.error && <div style={errorStyle}>{authState.error}</div>}
 
       {/* Google Sign In Button */}
-      <button onClick={handleGoogleLogin} style={googleButtonStyle}>
+      <button
+        type="button"
+        className="google-sign-in-button"
+        onClick={handleGoogleLogin}
+      >
         <svg width="18" height="18" viewBox="0 0 48 48" style={{ marginRight: '10px', verticalAlign: 'middle' }}>
           <path fill="#EA4335" d="M24 9.5c3.54 0 6.71 1.22 9.21 3.6l6.85-6.85C35.9 2.38 30.47 0 24 0 14.62 0 6.51 5.38 2.56 13.22l7.98 6.19C12.43 13.72 17.74 9.5 24 9.5z"/>
           <path fill="#4285F4" d="M46.98 24.55c0-1.57-.15-3.09-.38-4.55H24v9.02h12.94c-.58 2.96-2.26 5.48-4.78 7.18l7.73 6c4.51-4.18 7.09-10.36 7.09-17.65z"/>
@@ -124,28 +130,13 @@ export const SSOLogin: React.FC<SSOLoginProps> = ({ onAuthChange }) => {
 // STYLES
 // ----------------------------------------------------------------------------
 const containerStyle: React.CSSProperties = {
-  padding: '16px',
+  padding: '20px 24px',
   fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif',
-  width: '300px',
+  width: '100%',
+  maxWidth: '340px',
   margin: '0 auto',
   textAlign: 'center',
   boxSizing: 'border-box',
-};
-
-const googleButtonStyle: React.CSSProperties = {
-  width: '100%',
-  padding: '11px',
-  backgroundColor: '#ffffff',
-  color: '#3c4043',
-  border: '1px solid #dadce0',
-  borderRadius: '4px',
-  fontSize: '13px',
-  fontWeight: 'bold',
-  cursor: 'pointer',
-  display: 'flex',
-  alignItems: 'center',
-  justifyContent: 'center',
-  boxShadow: '0 1px 2px rgba(60,64,67,0.15)',
 };
 
 const logoutButtonStyle: React.CSSProperties = {

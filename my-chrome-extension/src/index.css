@@ -69,6 +69,68 @@ body {
   min-height: 100dvh;
 }
 
+.auth-header {
+  margin-bottom: 18px;
+  padding-bottom: 14px;
+  border-bottom: 1px solid rgba(60, 64, 67, 0.16);
+}
+
+.auth-header-title {
+  margin: 0 0 12px;
+  color: #173b28;
+  font-size: 21px;
+  font-weight: 650;
+  letter-spacing: -0.2px;
+  line-height: 1.25;
+}
+
+.auth-header-description {
+  margin: 0;
+  color: #52645a;
+  font-size: 12px;
+  line-height: 1.45;
+}
+
+.google-sign-in-button {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  min-height: 56px;
+  margin-top: 8px;
+  padding: 14px 18px;
+  border: 2px solid #dadce0;
+  border-radius: 10px;
+  background: #fff;
+  color: #3c4043;
+  font-family: inherit;
+  font-size: 16px;
+  font-weight: 600;
+  line-height: 1.25;
+  cursor: pointer;
+  box-shadow: 0 2px 4px rgba(60, 64, 67, 0.18);
+  transition:
+    background-color 150ms ease,
+    border-color 150ms ease,
+    box-shadow 150ms ease,
+    transform 150ms ease;
+}
+
+.google-sign-in-button:hover {
+  border-color: #8ab4f8;
+  background: #f8faff;
+  box-shadow: 0 3px 8px rgba(60, 64, 67, 0.22);
+}
+
+.google-sign-in-button:active {
+  transform: scale(0.98);
+}
+
+.google-sign-in-button:focus-visible {
+  outline: 3px solid #4285f4;
+  outline-offset: 3px;
+}
+
 h1,
 h2 {
   font-family: var(--heading);
