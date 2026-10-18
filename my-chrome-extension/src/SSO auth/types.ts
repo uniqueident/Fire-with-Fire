@@ -1,15 +1,9 @@
 /**
- * types.ts — Shared data shapes for Google SSO & .edu Verification
+ * types.ts — Shared data shapes for Google SSO
  */
 
 export interface AuthConfig {
-  clientId: string;
-  authEndpoint: string;
-  tokenEndpoint: string;
-  userInfoEndpoint?: string;
-  issuer: string;
-  scopes: string[];
-  redirectUri: string;
+  userInfoEndpoint: string;
 }
 
 export interface AuthTokens {

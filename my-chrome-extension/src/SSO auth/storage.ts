@@ -9,7 +9,7 @@ import type {
  * storage.ts — Browser Storage Manager for Tokens & Credentials
  *
  * - Active session tokens: stored in chrome.storage.session (memory-only, wiped on exit).
- * - Verified .edu hashed credentials: stored in chrome.storage.local (persists across sessions).
+ * - Verified account hashed credentials: stored in chrome.storage.local (persists across sessions).
  */
 
 const STORAGE_KEYS = {
@@ -88,7 +88,7 @@ export async function getUserProfile(): Promise<UserProfile | null> {
 }
 
 /**
- * Saves verified .edu user hash to persistent local storage for future SSO logins.
+ * Saves verified user hash to persistent local storage for future SSO logins.
  */
 export async function saveVerifiedCredential(credential: StoredUserCredential): Promise<void> {
   const storage = getLocalStorage();
@@ -100,7 +100,7 @@ export async function saveVerifiedCredential(credential: StoredUserCredential): 
 }
 
 /**
- * Retrieves the stored verified .edu user hash.
+ * Retrieves the stored verified user hash.
  */
 export async function getVerifiedCredential(): Promise<StoredUserCredential | null> {
   const storage = getLocalStorage();
