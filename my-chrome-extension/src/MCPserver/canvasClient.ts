@@ -64,6 +64,7 @@ interface CachedCanvasResponse {
   next?: string;
 }
 
+// One client instance owns the token, short-lived cache, and request pacing.
 export class CanvasClient {
   private readonly baseUrl: URL;
   private readonly token: string;
@@ -94,6 +95,7 @@ export class CanvasClient {
   }
 
   async listCourseMaterials(courseId: number) {
+    // Keep these sequential; a course overview can otherwise burst four Canvas requests at once.
     const modules = await this.getAll<CanvasModule>(`/api/v1/courses/${courseId}/modules?include%5B%5D=items&per_page=100`);
     const pages = await this.getAll<CanvasPage>(`/api/v1/courses/${courseId}/pages?per_page=100`);
     const files = await this.listCourseFiles(courseId);
@@ -219,6 +221,7 @@ export class CanvasClient {
     }
     if (cached) this.responseCache.delete(cacheKey);
 
+    // Share an in-flight read so repeated model tool calls do not duplicate it.
     const pending = this.inFlight.get(cacheKey);
     if (pending) return pending as Promise<CanvasResponse<T>>;
 
@@ -260,34 +263,26 @@ export class CanvasClient {
   }
 
   private async fetchWithRateLimit(url: URL, init: RequestInit): Promise<Response> {
-    const makeRequest = async () => {
-      await this.waitForRequestSlot();
-      return fetch(url, { ...init, signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS) });
-    };
-
-    let response = await makeRequest();
+    const response = await this.queueRequest(url, init);
     if (response.status !== 429) return response;
 
+    // Respect Canvas's backoff hint, but never retry indefinitely.
     const retryAfter = this.retryDelay(response.headers.get("Retry-After"));
     await response.body?.cancel();
     await new Promise((resolve) => setTimeout(resolve, retryAfter));
-    response = await makeRequest();
-    return response;
+    return this.queueRequest(url, init);
   }
 
-  private async waitForRequestSlot(): Promise<void> {
-    const previous = this.requestQueue;
-    let release = () => {};
-    this.requestQueue = new Promise<void>((resolve) => { release = resolve; });
-    await previous;
-
-    try {
+  private queueRequest(url: URL, init: RequestInit): Promise<Response> {
+    // Space request starts and keep Canvas requests from overlapping.
+    const request = this.requestQueue.then(async () => {
       const waitMs = MIN_REQUEST_INTERVAL_MS - (Date.now() - this.lastRequestAt);
       if (waitMs > 0) await new Promise((resolve) => setTimeout(resolve, waitMs));
       this.lastRequestAt = Date.now();
-    } finally {
-      release();
-    }
+      return fetch(url, { ...init, signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS) });
+    });
+    this.requestQueue = request.then(() => undefined, () => undefined);
+    return request;
   }
 
   private retryDelay(retryAfter: string | null): number {
@@ -316,6 +311,7 @@ export class CanvasClient {
     if (url.protocol !== "https:" || url.username || url.password) {
       throw new Error("Canvas returned an unsafe file URL.");
     }
+    // A Canvas bearer token is sent only to the configured Canvas origin.
     return url;
   }
 
@@ -343,6 +339,7 @@ export class CanvasClient {
         if (done) break;
         totalBytes += value.byteLength;
         if (totalBytes > MAX_FILE_BYTES) {
+          // Cancel before buffering an oversized file in memory.
           await reader.cancel();
           throw new Error(`Canvas file exceeds the ${MAX_FILE_BYTES / 1024 / 1024} MB read limit.`);
         }

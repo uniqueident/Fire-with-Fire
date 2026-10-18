@@ -3,6 +3,8 @@
 import { McpServer } from "@modelcontextprotocol/server";
 import { serveStdio } from "@modelcontextprotocol/server/stdio";
 import { z } from "zod";
+import { createHash } from "node:crypto";
+import { readFileSync } from "node:fs";
 import { argv, env } from "node:process";
 import { CanvasClient } from "./canvasClient.js";
 import { startLocalBridge } from "./localBridge.js";
@@ -96,6 +98,16 @@ function createServer(canvas: CanvasClient): McpServer {
   return server;
 }
 
+function getExtensionIdFromManifest(): string {
+  const manifestUrl = new URL("../manifest.json", import.meta.url);
+  const manifest = JSON.parse(readFileSync(manifestUrl, "utf8")) as { key?: string };
+  if (!manifest.key) throw new Error("manifest.json must include its Chrome extension public key.");
+
+  // Chrome derives the extension ID from the first 16 bytes of this key's SHA-256 hash.
+  const hash = createHash("sha256").update(Buffer.from(manifest.key, "base64")).digest().subarray(0, 16);
+  return [...hash].map((byte) => String.fromCharCode(97 + (byte >> 4), 97 + (byte & 15))).join("");
+}
+
 const canvasBaseUrl = env.CANVAS_BASE_URL;
 const canvasToken = env.CANVAS_API_TOKEN;
 
@@ -108,7 +120,8 @@ if (!canvasBaseUrl || !canvasToken) {
     if (argv.includes("--bridge")) {
       if (argv.includes("--dev")) {
         const devOrigin = env.CANVAS_DEV_ORIGIN ?? "http://localhost:5173";
-        startLocalBridge(canvas, undefined, devOrigin);
+        const extensionId = env.CHROME_EXTENSION_ID ?? getExtensionIdFromManifest();
+        startLocalBridge(canvas, extensionId, devOrigin);
       } else {
         if (!env.CHROME_EXTENSION_ID) throw new Error("Set CHROME_EXTENSION_ID before starting the local Canvas bridge.");
         startLocalBridge(canvas, env.CHROME_EXTENSION_ID);

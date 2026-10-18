@@ -1,4 +1,5 @@
 import type { OllamaTool } from './ollama';
+import { getBridgeAuthHeaders } from './bridgeClient';
 
 const CANVAS_BRIDGE_URL = 'http://127.0.0.1:4317/tools/call';
 
@@ -46,7 +47,7 @@ export async function callCanvasReadTool(
   );
   const response = await fetch(CANVAS_BRIDGE_URL, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+    headers: { 'Content-Type': 'application/json', ...getBridgeAuthHeaders() },
     body: JSON.stringify(normalizedArgs),
   });
   const result = await response.json() as { error?: string };

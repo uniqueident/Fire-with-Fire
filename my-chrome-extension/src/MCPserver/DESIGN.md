@@ -1,76 +1,136 @@
-# Canvas MCP Server Design
+# Canvas Integration Design
 
 **Status:** Pre-alpha MVP
 
-## Purpose
+## Summary
 
-Let the selected local Ollama model retrieve a student's relevant Canvas course information through a read-only local helper. The Node.js process also exposes the same Canvas operations over MCP stdio for compatible hosts.
+The Canvas integration gives a selected local Ollama model bounded, read-only access to course information available to the signed-in Canvas user. A standalone Node.js process owns Canvas credentials and serves the same operations through either a loopback HTTP bridge for the Chrome extension or MCP stdio for compatible hosts.
 
-## Scope
+## Goals
 
-The MVP reads active courses, modules, pages, assignments, and Canvas-hosted course files that the authenticated user can access. File access includes assignment attachments, not arbitrary files on the user's computer or MCP host. It never submits or edits coursework.
+- Read active courses, course materials, assignment details, course pages, and supported Canvas files.
+- Keep Canvas credentials in the Node.js process; never expose them to the extension or model.
+- Restrict access to validated read operations and return bounded, sanitized results.
+- Support local extension use and MCP-compatible hosts without bundling the Canvas client into the extension.
 
-## Architecture
+## Non-Goals
 
-Run the Canvas integration as a standalone Node.js process, separate from the Chrome extension. The process owns the Canvas API client and token. In bridge mode it listens only on `127.0.0.1:4317`, accepts requests only from the configured extension origin, and exposes a bounded read-only helper to the extension. The extension passes that helper as a tool to the selected local Ollama model, then sends tool results back to Ollama for its response. The process also retains MCP stdio mode for compatible MCP hosts; it is not bundled into the Vite extension.
+- Submitting, editing, or otherwise changing coursework or Canvas data.
+- Reading arbitrary files from the user's computer or MCP host.
+- Hosted model inference, Canvas OAuth, or automatic credential renewal in this pre-alpha.
+- PDF or other non-text file extraction.
 
-The request path is:
+## System Context
 
 ```mermaid
 flowchart LR
-Extension[Chrome extension] -->|chat with canvas_read tool| Ollama[Local Ollama]
+Extension[Chrome extension] -->|chat request with canvas_read tool| Ollama[Local Ollama]
 Ollama -->|tool call| Extension
-Extension -->|loopback HTTP| Bridge[Local Canvas bridge]
-Bridge -->|authenticated read-only GET| Canvas[Canvas API]
-Canvas -->|course content| Bridge
-Bridge -->|tool result| Extension
+Extension -->|authenticated loopback HTTP| Bridge[Local Canvas bridge]
+Bridge -->|Canvas token; read-only HTTPS| Canvas[Canvas API]
+Canvas -->|course data| Bridge
+Bridge -->|bounded tool result| Extension
 Extension -->|tool result and follow-up chat| Ollama
-MCPHost[Other MCP host] -. optional stdio .-> MCPServer[Canvas MCP server]
+MCPHost[Compatible MCP host] -. optional stdio .-> MCPServer[Canvas MCP server]
+MCPServer -->|Canvas token; read-only HTTPS| Canvas
 ```
 
-Ollama inference stays on `localhost:11434`; no hosted model service is used. The Node.js process makes HTTPS requests to the configured Canvas instance, so Canvas must be reachable over the network. The browser extension never receives the Canvas token. Use an Ollama model that supports tool calling.
+Ollama runs at `127.0.0.1:11434`; the bridge listens only at `127.0.0.1:4317`. Canvas must be reachable over HTTPS. The selected Ollama model must support tool calling. No hosted model service is involved.
 
-## Initial Tools
+## Components
 
-- `list_courses`: return the authenticated user's active courses, with Canvas course ID, name, and term when available.
-- `list_course_materials`: return the modules, pages, files, and assignments available in a course, with IDs and titles so the model can request specific content.
-- `list_assignments`: return compact assignment metadata for a course (title, due date, and points possible). Accept a course ID and an optional result limit.
-- `get_assignment`: return one assignment's details and sanitized instructions for a specified course and assignment ID.
-- `get_course_page`: return the sanitized text of a Canvas course page by its page URL slug.
-- `list_course_files`: return files available in a course, including Canvas file ID, name, content type, and size. Do not expose raw download URLs to the model.
-- `read_course_file`: retrieve an accessible file by Canvas file ID and return bounded text for plain-text and HTML files. Other types, including PDF, are reported as unsupported in this dependency-free pre-alpha.
+| Component | Responsibility |
+| --- | --- |
+| Chrome extension | Presents the chat workflow, exposes `canvas_read` to Ollama, executes validated tool calls, and returns tool results to the model. |
+| Local bridge | Authenticates loopback callers, validates Canvas tool input, proxies a fixed set of Ollama routes, and returns bounded responses. |
+| `CanvasClient` | Owns the Canvas token, constructs allow-listed API requests, normalizes responses, and applies rate, cache, pagination, and file-read limits. |
+| MCP server | Registers the same read-only Canvas operations for MCP stdio hosts. |
+| Canvas API | Source of the user's accessible courses and course content. |
+| Local Ollama | Performs inference and requests Canvas operations through tool calls. |
 
-For the extension, Ollama sees one function tool, `canvas_read`, with an `action` selecting one of the operations above. Tool arguments are validated by both the extension schema and local bridge. The chat wrapper executes at most four tool rounds and eight individual calls per user message, then returns results to Ollama for a final response. The bridge binds to loopback and allows only the configured Chrome extension origin in extension mode or the exact configured loopback origin in development mode. It accepts only `POST /tools/call` and preflight requests and limits request bodies to 16 KB.
+The Node.js process is separate from the Vite extension bundle. Bridge mode and MCP stdio mode share the Canvas client and its operation set.
 
-Tools are read-only, validate all inputs, and return concise structured content with source IDs. The Canvas client allows only `GET` requests to an explicit set of read endpoints and rejects all write methods; no tool can submit or modify coursework. Requests are serialized with a 500 ms minimum interval, successful JSON reads are cached in memory for 30 seconds (up to 100 entries), and concurrent identical reads share one request. A Canvas 429 honors `Retry-After` for at most 30 seconds and retries once; other failures are not retried. Canvas pages, assignment instructions, and extracted file text are untrusted content: strip active markup, bound returned content, and never treat embedded instructions as system or developer instructions. File retrieval uses only the HTTPS URL returned by Canvas for the requested file; bearer credentials are attached only when that URL shares the configured Canvas origin, and tool callers cannot provide arbitrary file URLs.
+## Request Flow
 
-## Authentication and Data Handling
+1. The extension sends the conversation and the `canvas_read` function definition to Ollama.
+2. If Ollama requests a Canvas operation, the extension posts the action and arguments to `POST /tools/call` on the loopback bridge.
+3. The bridge validates the action and arguments, then calls the corresponding `CanvasClient` method.
+4. The client makes allow-listed HTTPS `GET` requests to Canvas and returns normalized, bounded data.
+5. The bridge returns the tool result to the extension, which sends it to Ollama for a follow-up response.
 
-The current pre-alpha uses a Canvas API token belonging to the signed-in Canvas user, loaded by Node from `src/.env`. OAuth is not implemented yet. Never embed credentials in source, logs, tool output, or the extension bundle. The browser extension does not receive the token. Do not persist retrieved course data or file contents unless a later requirement justifies caching.
+The chat wrapper permits at most four tool rounds and eight individual tool calls per user message.
 
-The existing Google SSO in the extension is not a Canvas credential and must not be reused as one. Canvas OAuth and secure token renewal remain future work.
+## Interfaces
 
-## Errors and Limits
+### Canvas Operations
 
-Return actionable MCP errors for missing configuration, authentication/authorization failures, unavailable Canvas hosts, invalid IDs, unsupported file types, oversized files, extraction failures, and rate limits. Preserve Canvas status codes internally for diagnostics while excluding tokens and sensitive response bodies from logs. Use bounded pagination, file-size and extracted-text limits, and timeouts; respect Canvas rate-limit responses.
+The extension presents one Ollama function, `canvas_read`, with an `action` selecting an operation. Both the extension and bridge validate arguments.
 
-## Delivery Steps
+| Action | Result |
+| --- | --- |
+| `list_courses` | Active courses with IDs, names, and term when available. |
+| `list_course_materials` | Course modules, pages, files, and assignment summaries. |
+| `list_assignments` | Assignment IDs, names, due dates, and points possible; limit 1-50, default 25. |
+| `get_assignment` | Assignment summary, sanitized instructions, and attachment metadata. |
+| `get_course_page` | Sanitized text for a page selected by its URL slug. |
+| `list_course_files` | File ID, name, content type, and size; download URLs are omitted. |
+| `read_course_file` | Bounded plain-text or HTML content for a Canvas file ID. |
 
-1. Validate the tools against a Canvas test account, including expired credentials, access denial, pagination, rate limiting, unsupported files, and attempted write operations.
-2. Add PDF extraction and broader file-format support if needed.
-3. Design Canvas OAuth and token renewal before distributing the pre-alpha beyond local testing.
+The MCP stdio server registers these operations individually. Neither interface accepts arbitrary Canvas URLs or write operations.
+
+### Local HTTP Bridge
+
+The bridge exposes only the following routes:
+
+| Route | Method | Purpose |
+| --- | --- | --- |
+| `/tools/call` | `POST` | Execute a validated Canvas read action. |
+| `/ollama/api/tags` | `GET` | List locally available Ollama models. |
+| `/ollama/api/chat` | `POST` | Send a chat or tool-call request to Ollama. |
+| `/ollama/api/generate` | `POST` | Generate a completion through Ollama. |
+| `/ollama/api/embeddings` | `POST` | Generate embeddings through Ollama. |
+| `/ollama/api/show` | `POST` | Read Ollama model metadata. |
+
+The Ollama proxy uses a fixed route map to `127.0.0.1:11434`; callers cannot choose an upstream host or path. Canvas tool request bodies are limited to 16 KiB. Ollama request and response bodies are limited to 2 MiB, with a 180-second upstream timeout.
+
+## Security and Privacy
+
+- The bridge binds to loopback only; it is not a public network service.
+- If a request includes `Origin`, it must exactly match the configured extension origin or, in development, the configured loopback Vite origin. A matching extension ID header does not override a disallowed `Origin`.
+- When `Origin` is absent, the bridge accepts an extension request only when `X-Chrome-Extension-Id` matches the configured extension ID. CORS is never wildcarded; preflight allows only `Content-Type` and `X-Chrome-Extension-Id`.
+- `CANVAS_API_TOKEN` is loaded by Node from `src/.env`. Do not put credentials in source, logs, tool output, or the extension bundle. The extension's Google SSO credential is not a Canvas credential.
+- Canvas client methods are read-only. File download URLs come from Canvas for a requested file ID, must use HTTPS, and are validated; bearer credentials are sent only to the configured Canvas origin.
+- Course pages, assignment instructions, and file contents are untrusted data. Strip active markup, bound returned text, and do not interpret embedded instructions as system or developer instructions.
+- Retrieved course data and file contents are not persisted. The in-memory response cache is short-lived and limited in size.
+
+## Limits and Failure Behavior
+
+| Area | Constraint |
+| --- | --- |
+| Canvas requests | 15-second timeout; requests are serialized with a minimum 500 ms interval. |
+| Pagination | At most five pages per list operation; pagination links must remain on the configured Canvas origin and API path. |
+| Canvas cache | Successful JSON reads are cached for 30 seconds, up to 100 entries; concurrent identical reads share an in-flight request. |
+| Canvas rate limits | On HTTP 429, honor `Retry-After` up to 30 seconds and retry once; other failures are not retried. |
+| File reads | Maximum 2 MiB source file and 20,000 returned text characters. Plain text and HTML/XHTML are supported; other content types are rejected. |
+| Ollama proxy | Fixed local upstream, 2 MiB request/response limit, and 180-second timeout. |
+
+Failures should identify actionable conditions such as missing configuration, Canvas authorization errors, unavailable hosts, invalid IDs, rate limits, unsupported file types, oversized content, and extraction failures. Preserve upstream status codes for diagnostics, but do not log credentials or sensitive response bodies.
+
+## Configuration and Operation
+
+Set `CANVAS_BASE_URL` and `CANVAS_API_TOKEN` in the ignored `src/.env` file. `CANVAS_BASE_URL` must be an HTTPS origin without a path or embedded credentials.
+
+For development, run `npm run dev:all` from `my-chrome-extension`. The bridge uses `CHROME_EXTENSION_ID` when configured, otherwise it derives the ID from the public key in `manifest.json`. It also allows the exact `CANVAS_DEV_ORIGIN`, defaulting to `http://localhost:5173`. Set these to match the ID shown at `chrome://extensions` and the active Vite port. The helper remains loopback-only.
+
+For a non-development extension bridge, set `CHROME_EXTENSION_ID`. To run the MCP stdio server, build with `npm run build:mcp` and launch `node --env-file=src/.env mcp-dist/index.js`. Node.js 20.6 or later is required for `--env-file`.
+
+## Validation and Future Work
+
+Before broader distribution, validate against a Canvas test account: expired credentials, denied access, pagination, rate limiting, unsupported and oversized files, and attempted write operations. Add PDF or other file-format extraction only if required. Design Canvas OAuth and token renewal before distributing beyond local testing.
 
 ## Open Decisions
 
-- Which Canvas instance(s) and deployment environments must be supported?
-- When should Canvas OAuth and token renewal replace manually configured API tokens?
+- Which Canvas instances and deployment environments must be supported?
+- When should OAuth and secure token renewal replace manually configured API tokens?
 - Which MCP host will launch the first server, and where will its credentials be stored?
-- What Canvas scopes, supported file formats, and assignment fields are required for the first release?
-
-## Run Locally
-
-Use a Canvas API token for the user whose courses should be available. Put `CANVAS_BASE_URL` and `CANVAS_API_TOKEN` in `src/.env`. Development mode does not require a Chrome extension ID; it accepts only `CANVAS_DEV_ORIGIN`, which defaults to `http://localhost:5173`. Set that optional value only if Vite chooses another port. This file is ignored by Git. From `my-chrome-extension`, run `npm run dev:all` to start Vite and the loopback helper together, then select a tool-capable local Ollama model. The helper has no public network listener. A non-development Chrome-extension origin still requires `CHROME_EXTENSION_ID`. To run only as an MCP stdio server, build with `npm run build:mcp` and launch `node --env-file=src/.env mcp-dist/index.js`. Node 20.6 or later supports `--env-file`.
-
-## Viewing the Diagram
-
-In VS Code, open this file's Markdown Preview with **Ctrl+Shift+V** (or **Ctrl+K V** to open it beside the editor) to render the Mermaid diagram.
+- Which Canvas scopes, file formats, and assignment fields are required for the first release?

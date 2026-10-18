@@ -1,13 +1,14 @@
 // Ollama API stubs — https://github.com/ollama/ollama/blob/main/docs/api.md
 // All requests target the default local Ollama server.
+import { getBridgeAuthHeaders } from './bridgeClient';
 
 // ---------------------------------------------------------------------------
 // Constants
 // ---------------------------------------------------------------------------
 
-const OLLAMA_BASE = 'http://localhost:11434';
+const OLLAMA_BASE = 'http://127.0.0.1:4317/ollama';
 
-const JSON_HEADERS = { 'Content-Type': 'application/json' };
+const JSON_HEADERS = { 'Content-Type': 'application/json', ...getBridgeAuthHeaders() };
 
 async function throwOllamaError(path: string, response: Response): Promise<never> {
   const detail = (await response.text()).trim().slice(0, 500);
@@ -171,7 +172,7 @@ export async function embeddings(req: EmbeddingsRequest): Promise<EmbeddingsResp
 
 /** List all models available locally. */
 export async function listModels(): Promise<ListModelsResponse> {
-  const res = await fetch(`${OLLAMA_BASE}/api/tags`);
+  const res = await fetch(`${OLLAMA_BASE}/api/tags`, { headers: getBridgeAuthHeaders() });
 
   if (!res.ok) await throwOllamaError('/api/tags', res);
   return res.json() as Promise<ListModelsResponse>;

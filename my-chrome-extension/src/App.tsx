@@ -1,6 +1,8 @@
 import TalkyWindow from "./talkywindow";
 import menteLogo from "./assets/Mente Logo.png";
 import "./App.css";
+import { useState } from "react";
+import Auth from "./authMain";
 
 const App: React.FC = () => {
   const [isAccountVerified, setIsAccountVerified] = useState(false);

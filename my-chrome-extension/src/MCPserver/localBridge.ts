@@ -5,6 +5,17 @@ import type { CanvasClient } from "./canvasClient.js";
 const BRIDGE_HOST = "127.0.0.1";
 const BRIDGE_PORT = 4317;
 const MAX_BODY_BYTES = 16 * 1024;
+const MAX_OLLAMA_BODY_BYTES = 2 * 1024 * 1024;
+const OLLAMA_TIMEOUT_MS = 180_000;
+const OLLAMA_BASE_URL = "http://127.0.0.1:11434";
+// Keep this proxy allow-listed; callers cannot choose an Ollama URL or path.
+const OLLAMA_ROUTES = new Map<string, { method: "GET" | "POST"; path: string }>([
+  ["/ollama/api/tags", { method: "GET", path: "/api/tags" }],
+  ["/ollama/api/chat", { method: "POST", path: "/api/chat" }],
+  ["/ollama/api/generate", { method: "POST", path: "/api/generate" }],
+  ["/ollama/api/embeddings", { method: "POST", path: "/api/embeddings" }],
+  ["/ollama/api/show", { method: "POST", path: "/api/show" }],
+]);
 const positiveId = z.preprocess(
   (value) => typeof value === "string" && /^\d+$/.test(value) ? Number(value) : value,
   z.number().int().positive(),
@@ -29,6 +40,7 @@ export function startLocalBridge(canvas: CanvasClient, extensionId?: string, dev
     throw new Error("Set CHROME_EXTENSION_ID to the 32-character ID shown for the unpacked extension at chrome://extensions.");
   }
 
+  // CORS is limited to the actual extension or Vite dev origin, never wildcarded.
   const allowedOrigins = new Set<string>();
   if (extensionId) allowedOrigins.add(`chrome-extension://${extensionId}`);
   if (devOrigin) {
@@ -48,7 +60,7 @@ export function startLocalBridge(canvas: CanvasClient, extensionId?: string, dev
   }
 
   const server = createServer((request, response) => {
-    void handleRequest(request, response, allowedOrigins, canvas);
+    void handleRequest(request, response, allowedOrigins, extensionId, canvas);
   });
 
   server.on("error", (error) => {
@@ -63,17 +75,22 @@ async function handleRequest(
   request: IncomingMessage,
   response: ServerResponse,
   allowedOrigins: Set<string>,
+  extensionId: string | undefined,
   canvas: CanvasClient,
 ): Promise<void> {
   const origin = request.headers.origin;
-  if (!origin || !allowedOrigins.has(origin)) {
-    sendJson(response, 403, { error: "This local helper only accepts requests from the configured extension." });
+  const requestExtensionId = request.headers["x-chrome-extension-id"];
+  const extensionAuthorized = Boolean(extensionId && requestExtensionId === extensionId);
+  if (origin ? !allowedOrigins.has(origin) : !extensionAuthorized) {
+    sendJson(response, 403, {
+      error: `This local helper only accepts requests from the configured extension. Received Origin: ${origin ?? "(missing)"}.`,
+    });
     return;
   }
 
-  response.setHeader("Access-Control-Allow-Origin", origin);
-  response.setHeader("Access-Control-Allow-Methods", "POST, OPTIONS");
-  response.setHeader("Access-Control-Allow-Headers", "Content-Type");
+  if (origin) response.setHeader("Access-Control-Allow-Origin", origin);
+  response.setHeader("Access-Control-Allow-Methods", "GET, POST, OPTIONS");
+  response.setHeader("Access-Control-Allow-Headers", "Content-Type, X-Chrome-Extension-Id");
   response.setHeader("Vary", "Origin");
   if (request.headers["access-control-request-private-network"] === "true") {
     response.setHeader("Access-Control-Allow-Private-Network", "true");
@@ -81,6 +98,11 @@ async function handleRequest(
 
   if (request.method === "OPTIONS") {
     response.writeHead(204).end();
+    return;
+  }
+  const ollamaRoute = OLLAMA_ROUTES.get(request.url ?? "");
+  if (ollamaRoute && request.method === ollamaRoute.method) {
+    await proxyOllama(request, response, ollamaRoute);
     return;
   }
   if (request.method !== "POST" || request.url !== "/tools/call") {
@@ -120,17 +142,57 @@ async function runCanvasAction(canvas: CanvasClient, input: z.infer<typeof reque
 }
 
 async function readJson(request: IncomingMessage): Promise<unknown> {
+  return JSON.parse((await readBody(request, MAX_BODY_BYTES)).toString("utf8")) as unknown;
+}
+
+async function proxyOllama(
+  request: IncomingMessage,
+  response: ServerResponse,
+  route: { method: "GET" | "POST"; path: string },
+): Promise<void> {
+  try {
+    let body: string | undefined;
+    if (route.method === "POST") {
+      body = (await readBody(request, MAX_OLLAMA_BODY_BYTES)).toString("utf8");
+      JSON.parse(body);
+    }
+
+    // Node makes this request locally, avoiding Ollama's browser-Origin rejection.
+    const upstream = await fetch(`${OLLAMA_BASE_URL}${route.path}`, {
+      method: route.method,
+      headers: body ? { "Content-Type": "application/json" } : undefined,
+      body,
+      signal: AbortSignal.timeout(OLLAMA_TIMEOUT_MS),
+    });
+    const payload = Buffer.from(await upstream.arrayBuffer());
+    if (payload.byteLength > MAX_OLLAMA_BODY_BYTES) {
+      sendJson(response, 502, { error: "Ollama response exceeded the local proxy limit." });
+      return;
+    }
+    response.writeHead(upstream.status, {
+      "Content-Type": upstream.headers.get("Content-Type") ?? "application/json",
+    });
+    response.end(payload);
+  } catch (error) {
+    const status = error instanceof SyntaxError ? 400 : 502;
+    sendJson(response, status, {
+      error: error instanceof Error ? error.message : "Local Ollama request failed.",
+    });
+  }
+}
+
+async function readBody(request: IncomingMessage, maxBytes: number): Promise<Buffer> {
   const chunks: Buffer[] = [];
   let bytesRead = 0;
 
   for await (const chunk of request) {
     const buffer = Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk);
     bytesRead += buffer.byteLength;
-    if (bytesRead > MAX_BODY_BYTES) throw new Error("Tool request is too large.");
+    if (bytesRead > maxBytes) throw new Error("Request body is too large.");
     chunks.push(buffer);
   }
 
-  return JSON.parse(Buffer.concat(chunks).toString("utf8")) as unknown;
+  return Buffer.concat(chunks);
 }
 
 function sendJson(response: ServerResponse, status: number, body: unknown): void {
