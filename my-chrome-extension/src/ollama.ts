@@ -132,9 +132,9 @@ export async function generate(req: GenerateRequest): Promise<GenerateResponse> 
   return postJSON<GenerateResponse>('/api/generate', { ...req, stream: true });
 }
 
-/** Multi-turn chat (streaming) text. */
+/** Multi-turn chat completion. */
 export async function chat(req: ChatRequest): Promise<ChatResponse> {
-  return postJSON<ChatResponse>('/api/chat', { ...req, stream: true });
+  return postJSON<ChatResponse>('/api/chat', { ...req, stream: false });
 }
 
 /** Generate an embedding vector for similarity search. */
