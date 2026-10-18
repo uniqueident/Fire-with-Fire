@@ -105,6 +105,17 @@
   text-align: center;
 }
 
+.ai-disclaimer {
+  margin: 0;
+  padding: 8px 10px;
+  border-radius: 7px;
+  color: var(--text);
+  background: var(--social-bg);
+  font-size: 11px;
+  line-height: 1.4;
+  text-align: center;
+}
+
 .chat-message {
   max-width: 88%;
   padding: 10px 12px;

@@ -73,6 +73,10 @@ export default function TalkyWindow() {
       </div>
 
       <div className="chat-messages" aria-live="polite" aria-relevant="additions">
+        <p className="ai-disclaimer" role="note">
+          AI can make mistakes. Use caution with sensitive information and verify advice
+          that could affect your safety or well-being.
+        </p>
         {messages.length === 0 && (
           <p className="chat-empty">Your conversation with Mente will appear here.</p>
         )}
