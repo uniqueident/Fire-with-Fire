@@ -5,26 +5,50 @@ import type { CanvasClient } from "./canvasClient.js";
 const BRIDGE_HOST = "127.0.0.1";
 const BRIDGE_PORT = 4317;
 const MAX_BODY_BYTES = 16 * 1024;
-const positiveId = z.number().int().positive();
+const positiveId = z.preprocess(
+  (value) => typeof value === "string" && /^\d+$/.test(value) ? Number(value) : value,
+  z.number().int().positive(),
+);
+const optionalLimit = z.preprocess(
+  (value) => typeof value === "string" && /^\d+$/.test(value) ? Number(value) : value,
+  z.number().int().min(1).max(50),
+).optional();
 
 const requestSchema = z.discriminatedUnion("action", [
-  z.object({ action: z.literal("list_courses") }).strict(),
-  z.object({ action: z.literal("list_course_materials"), courseId: positiveId }).strict(),
-  z.object({ action: z.literal("list_assignments"), courseId: positiveId, limit: z.number().int().min(1).max(50).optional() }).strict(),
-  z.object({ action: z.literal("get_assignment"), courseId: positiveId, assignmentId: positiveId }).strict(),
-  z.object({ action: z.literal("get_course_page"), courseId: positiveId, pageUrl: z.string().min(1).max(200).regex(/^[A-Za-z0-9_-]+$/) }).strict(),
-  z.object({ action: z.literal("list_course_files"), courseId: positiveId }).strict(),
-  z.object({ action: z.literal("read_course_file"), fileId: positiveId }).strict(),
+  z.object({ action: z.literal("list_courses") }),
+  z.object({ action: z.literal("list_course_materials"), courseId: positiveId }),
+  z.object({ action: z.literal("list_assignments"), courseId: positiveId, limit: optionalLimit }),
+  z.object({ action: z.literal("get_assignment"), courseId: positiveId, assignmentId: positiveId }),
+  z.object({ action: z.literal("get_course_page"), courseId: positiveId, pageUrl: z.string().min(1).max(200).regex(/^[A-Za-z0-9_-]+$/) }),
+  z.object({ action: z.literal("list_course_files"), courseId: positiveId }),
+  z.object({ action: z.literal("read_course_file"), fileId: positiveId }),
 ]);
 
-export function startLocalBridge(canvas: CanvasClient, extensionId: string): void {
-  if (!/^[a-p]{32}$/.test(extensionId)) {
+export function startLocalBridge(canvas: CanvasClient, extensionId?: string, devOrigin?: string): void {
+  if (extensionId && !/^[a-p]{32}$/.test(extensionId)) {
     throw new Error("Set CHROME_EXTENSION_ID to the 32-character ID shown for the unpacked extension at chrome://extensions.");
   }
 
-  const allowedOrigin = `chrome-extension://${extensionId}`;
+  const allowedOrigins = new Set<string>();
+  if (extensionId) allowedOrigins.add(`chrome-extension://${extensionId}`);
+  if (devOrigin) {
+    const parsedOrigin = new URL(devOrigin);
+    if (
+      parsedOrigin.protocol !== "http:" ||
+      !["localhost", "127.0.0.1"].includes(parsedOrigin.hostname) ||
+      !parsedOrigin.port ||
+      parsedOrigin.origin !== devOrigin
+    ) {
+      throw new Error("CANVAS_DEV_ORIGIN must be a loopback HTTP origin with an explicit port, such as http://localhost:5173.");
+    }
+    allowedOrigins.add(devOrigin);
+  }
+  if (allowedOrigins.size === 0) {
+    throw new Error("Configure a Chrome extension ID or a loopback development origin for the local Canvas bridge.");
+  }
+
   const server = createServer((request, response) => {
-    void handleRequest(request, response, allowedOrigin, canvas);
+    void handleRequest(request, response, allowedOrigins, canvas);
   });
 
   server.on("error", (error) => {
@@ -38,15 +62,16 @@ export function startLocalBridge(canvas: CanvasClient, extensionId: string): voi
 async function handleRequest(
   request: IncomingMessage,
   response: ServerResponse,
-  allowedOrigin: string,
+  allowedOrigins: Set<string>,
   canvas: CanvasClient,
 ): Promise<void> {
-  if (request.headers.origin !== allowedOrigin) {
+  const origin = request.headers.origin;
+  if (!origin || !allowedOrigins.has(origin)) {
     sendJson(response, 403, { error: "This local helper only accepts requests from the configured extension." });
     return;
   }
 
-  response.setHeader("Access-Control-Allow-Origin", allowedOrigin);
+  response.setHeader("Access-Control-Allow-Origin", origin);
   response.setHeader("Access-Control-Allow-Methods", "POST, OPTIONS");
   response.setHeader("Access-Control-Allow-Headers", "Content-Type");
   response.setHeader("Vary", "Origin");

@@ -106,8 +106,13 @@ if (!canvasBaseUrl || !canvasToken) {
   try {
     const canvas = new CanvasClient(canvasBaseUrl, canvasToken);
     if (argv.includes("--bridge")) {
-      if (!env.CHROME_EXTENSION_ID) throw new Error("Set CHROME_EXTENSION_ID before starting the local Canvas bridge.");
-      startLocalBridge(canvas, env.CHROME_EXTENSION_ID);
+      if (argv.includes("--dev")) {
+        const devOrigin = env.CANVAS_DEV_ORIGIN ?? "http://localhost:5173";
+        startLocalBridge(canvas, undefined, devOrigin);
+      } else {
+        if (!env.CHROME_EXTENSION_ID) throw new Error("Set CHROME_EXTENSION_ID before starting the local Canvas bridge.");
+        startLocalBridge(canvas, env.CHROME_EXTENSION_ID);
+      }
     } else {
       serveStdio(() => createServer(canvas), {
         onerror: (error) => console.error("Canvas MCP server error:", error.message),
